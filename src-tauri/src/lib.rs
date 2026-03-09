@@ -1,3 +1,5 @@
+mod commands;
+
 use tauri::{
     Manager,
     menu::{MenuBuilder},
@@ -13,7 +15,7 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![greet, commands::system::get_system_specs])
         .setup(|app| {
             // Build the right-click context menu
             let menu = MenuBuilder::new(app)
