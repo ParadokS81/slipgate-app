@@ -43,9 +43,24 @@
   --radius-box: 0.5rem;
 }
 
-/* Global styles for the mini panel */
+/* Global styles */
 html, body, #root {
   height: 100%;
   margin: 0;
   overflow: hidden;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(40% 0.02 265);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(50% 0.02 265);
 }
