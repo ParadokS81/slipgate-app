@@ -3241,11 +3241,11 @@ name = "slipgate-app"
 version = "0.1.0"
 dependencies = [
  "serde",
- "serde_json",
  "sysinfo",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "windows 0.59.0",
  "wmi",
 ]
 

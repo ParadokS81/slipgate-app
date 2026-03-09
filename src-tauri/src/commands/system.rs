@@ -57,8 +57,7 @@ pub struct AllSpecs {
 }
 
 /// Single command that gathers all system + peripheral info.
-/// Uses one COM initialization to avoid COM re-init bugs,
-/// native WMI for GPU/display/audio, and one targeted PowerShell
+/// Uses native WMI for GPU/display/audio, and one targeted PowerShell
 /// call for USB device bus-reported names (mice/keyboards).
 #[tauri::command]
 pub fn get_all_specs() -> AllSpecs {
@@ -111,10 +110,10 @@ pub fn get_all_specs() -> AllSpecs {
 fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<HidDevice>) {
     let empty_display = DisplayInfo { refresh_hz: None, monitor_name: None };
 
-    let com = match wmi::COMLibrary::new() {
-        Ok(c) => c,
-        Err(_) => return (None, empty_display, Vec::new(), Vec::new()),
-    };
+    // Tauri's thread pool already initializes COM (MTA mode).
+    // COMLibrary::new() would fail with RPC_E_CHANGED_MODE.
+    // assume_initialized() reuses the existing COM context safely.
+    let com = unsafe { wmi::COMLibrary::assume_initialized() };
     let conn = match wmi::WMIConnection::new(com) {
         Ok(c) => c,
         Err(_) => return (None, empty_display, Vec::new(), Vec::new()),
@@ -125,7 +124,7 @@ fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<
     #[derive(serde::Deserialize)]
     struct GpuRow {
         Name: Option<String>,
-        AdapterRAM: Option<u64>,
+        AdapterRAM: Option<i64>,
         DriverVersion: Option<String>,
         CurrentRefreshRate: Option<u32>,
     }
@@ -138,7 +137,7 @@ fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<
     let gpu = best_gpu.as_ref().and_then(|g| {
         g.Name.clone().map(|name| GpuInfo {
             model: name,
-            vram_mb: g.AdapterRAM.map(|bytes| bytes / (1024 * 1024)),
+            vram_mb: g.AdapterRAM.map(|bytes| (bytes as u64) / (1024 * 1024)),
             driver_version: g.DriverVersion.clone(),
         })
     });
@@ -191,82 +190,162 @@ fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<
         audio_devices.push(AudioDevice { name: short_name, device_type: device_type.into() });
     }
 
-    // --- USB HID devices (PowerShell for bus-reported names) ---
+    // --- USB HID devices (native SetupAPI — fast, no PowerShell) ---
     let hid_devices = get_usb_hid_devices();
 
     (gpu, display, audio_devices, hid_devices)
 }
 
-/// Get USB HID device names via PowerShell (DEVPKEY_Device_BusReportedDeviceDesc).
-/// This is one targeted call — only gets USB devices with Mouse/Keyboard children.
+/// Get USB HID device names via native Windows SetupAPI.
+/// Bottom-up: enumerates Mouse/Keyboard class devices, walks UP to
+/// USB parent, reads DEVPKEY_Device_BusReportedDeviceDesc for the real name.
+/// Deduplicates USB devices that register both Mouse and Keyboard HID children
+/// (common for wireless dongles) and classifies by name heuristics.
 #[cfg(target_os = "windows")]
 fn get_usb_hid_devices() -> Vec<HidDevice> {
-    let script = r#"
-$results = @()
-$usbDevices = Get-PnpDevice -Class 'USB' -Status OK | Where-Object {
-    $_.InstanceId -like 'USB\VID_*' -and $_.InstanceId -notlike '*MI_*'
-}
-foreach ($dev in $usbDevices) {
-    try {
-        $busName = (Get-PnpDeviceProperty -InstanceId $dev.InstanceId -KeyName DEVPKEY_Device_BusReportedDeviceDesc -ErrorAction SilentlyContinue).Data
-        if (-not $busName) { continue }
-        if ($busName -like '*Hub*' -or $busName -like '*Host Controller*') { continue }
-        $vid_pid = $dev.InstanceId -replace 'USB\\(VID_[0-9A-F]+&PID_[0-9A-F]+)\\.*', '$1'
-        $hasMouseChild = $false
-        $hasKeyboardChild = $false
-        $childDevices = Get-PnpDevice -Status OK | Where-Object {
-            ($_.InstanceId -like "HID\$vid_pid*") -and ($_.Class -eq 'Mouse' -or $_.Class -eq 'Keyboard')
+    use std::collections::{HashMap, HashSet};
+    use windows::Win32::Devices::DeviceAndDriverInstallation::*;
+    use windows::Win32::Devices::Properties::*;
+
+    // Collect: USB device ID → (bus-reported name, set of HID class types)
+    let mut usb_map: HashMap<String, (String, HashSet<String>)> = HashMap::new();
+
+    let classes = [
+        (&GUID_DEVCLASS_MOUSE, "mouse"),
+        (&GUID_DEVCLASS_KEYBOARD, "keyboard"),
+    ];
+
+    for (class_guid, hid_type) in &classes {
+        unsafe {
+            let dev_info = match SetupDiGetClassDevsW(
+                Some(*class_guid),
+                None,
+                None,
+                DIGCF_PRESENT,
+            ) {
+                Ok(h) => h,
+                Err(_) => continue,
+            };
+
+            let mut index: u32 = 0;
+            loop {
+                let mut data = SP_DEVINFO_DATA {
+                    cbSize: std::mem::size_of::<SP_DEVINFO_DATA>() as u32,
+                    ..Default::default()
+                };
+
+                if SetupDiEnumDeviceInfo(dev_info, index, &mut data).is_err() {
+                    break;
+                }
+                index += 1;
+
+                // Walk UP the device tree to find a USB\VID_ ancestor
+                let mut current = data.DevInst;
+                loop {
+                    let mut parent: u32 = 0;
+                    if CM_Get_Parent(&mut parent, current, 0) != CR_SUCCESS {
+                        break;
+                    }
+
+                    let mut id_buf = [0u16; 256];
+                    if CM_Get_Device_IDW(parent, &mut id_buf, 0) != CR_SUCCESS {
+                        break;
+                    }
+                    let id_str = String::from_utf16_lossy(&id_buf);
+                    let id = id_str.trim_end_matches('\0');
+
+                    if id.starts_with("USB\\VID_") && !id.contains("MI_") {
+                        let entry = usb_map.entry(id.to_string());
+                        let (name, types) = entry.or_insert_with(|| {
+                            let name = get_devnode_string_property(
+                                parent,
+                                &DEVPKEY_Device_BusReportedDeviceDesc,
+                            )
+                            .unwrap_or_default();
+                            (name, HashSet::new())
+                        });
+                        let _ = name; // already set on first insert
+                        types.insert(hid_type.to_string());
+                        break;
+                    }
+                    current = parent;
+                }
+            }
+
+            let _ = SetupDiDestroyDeviceInfoList(dev_info);
         }
-        foreach ($child in $childDevices) {
-            if ($child.Class -eq 'Mouse') { $hasMouseChild = $true }
-            if ($child.Class -eq 'Keyboard') { $hasKeyboardChild = $true }
-        }
-        $deviceType = $null
-        if ($hasKeyboardChild) { $deviceType = "keyboard" }
-        elseif ($hasMouseChild) { $deviceType = "mouse" }
-        if ($deviceType) {
-            $results += [PSCustomObject]@{ name = $busName; device_type = $deviceType }
-        }
-    } catch {}
-}
-$results | ConvertTo-Json -Depth 2
-"#;
+    }
 
-    let output = std::process::Command::new("powershell.exe")
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
-        .output()
-        .ok();
-
-    let json = match output {
-        Some(ref o) => {
-            let s = String::from_utf8_lossy(&o.stdout).trim().to_string();
-            if s.is_empty() || s == "null" { return Vec::new(); }
-            s
-        }
-        None => return Vec::new(),
-    };
-
-    #[derive(serde::Deserialize)]
-    struct UsbDev { name: Option<String>, device_type: Option<String> }
-
-    // PowerShell returns single object {} for 1 result, array [] for multiple
-    #[derive(serde::Deserialize)]
-    #[serde(untagged)]
-    enum OneOrMany { Many(Vec<UsbDev>), One(UsbDev) }
-
-    let devs: Vec<UsbDev> = match serde_json::from_str::<OneOrMany>(&json) {
-        Ok(OneOrMany::Many(v)) => v,
-        Ok(OneOrMany::One(d)) => vec![d],
-        Err(_) => Vec::new(),
-    };
-
-    devs.into_iter()
-        .filter_map(|d| {
-            let name = d.name.filter(|n| !n.is_empty())?;
-            let dtype = d.device_type.filter(|t| !t.is_empty())?;
-            Some(HidDevice { name, device_type: dtype })
+    // Classify each USB device
+    usb_map
+        .into_values()
+        .filter_map(|(name, types)| {
+            if name.is_empty() || name.contains("Hub") || name.contains("Host Controller") {
+                return None;
+            }
+            let device_type = if types.len() == 1 {
+                types.into_iter().next().unwrap()
+            } else {
+                // Device has both mouse and keyboard HID children.
+                // Use name to pick the primary function.
+                let lower = name.to_lowercase();
+                if lower.contains("mouse") {
+                    "mouse".to_string()
+                } else if lower.contains("keyboard") || lower.contains("kbd") {
+                    "keyboard".to_string()
+                } else {
+                    // Ambiguous — default to keyboard (keyboards with extra
+                    // HID endpoints are more common than mice with keyboard children)
+                    "keyboard".to_string()
+                }
+            };
+            Some(HidDevice { name, device_type })
         })
         .collect()
+}
+
+/// Read a string property from a device node (devInst) using CM_Get_DevNode_PropertyW.
+#[cfg(target_os = "windows")]
+unsafe fn get_devnode_string_property(
+    devinst: u32,
+    property_key: &windows::Win32::Foundation::DEVPROPKEY,
+) -> Option<String> {
+    use windows::Win32::Devices::DeviceAndDriverInstallation::*;
+    use windows::Win32::Devices::Properties::*;
+
+    let mut prop_type = DEVPROPTYPE::default();
+    let mut size: u32 = 0;
+
+    // First call: get required buffer size
+    let _ = CM_Get_DevNode_PropertyW(devinst, property_key, &mut prop_type, None, &mut size, 0);
+    if size == 0 {
+        return None;
+    }
+
+    // Second call: read the property
+    let mut buffer = vec![0u8; size as usize];
+    if CM_Get_DevNode_PropertyW(
+        devinst,
+        property_key,
+        &mut prop_type,
+        Some(buffer.as_mut_ptr()),
+        &mut size,
+        0,
+    ) != CR_SUCCESS
+    {
+        return None;
+    }
+
+    if prop_type != DEVPROP_TYPE_STRING {
+        return None;
+    }
+
+    let wide: Vec<u16> = buffer
+        .chunks_exact(2)
+        .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect();
+    let text = String::from_utf16_lossy(&wide);
+    Some(text.trim_end_matches('\0').to_string())
 }
 
 // ============================================================

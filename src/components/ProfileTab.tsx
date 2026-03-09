@@ -100,7 +100,7 @@ export default function ProfileTab(props: ProfileTabProps) {
           <h2 class="text-xs font-semibold uppercase tracking-wider opacity-40 mb-3">
             Peripherals
           </h2>
-          <div class="space-y-1.5">
+          <div class={`space-y-1.5 transition-opacity ${props.loading ? "opacity-30" : ""}`}>
             <For each={mice()}>
               {(device) => <PeripheralRow label="Mouse" value={device.name} />}
             </For>
