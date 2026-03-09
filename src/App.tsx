@@ -1,4 +1,4 @@
-import { createSignal, onMount, Show } from "solid-js";
+import { createSignal, onMount, Show, For } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { currentMonitor, availableMonitors } from "@tauri-apps/api/window";
 
@@ -16,11 +16,27 @@ interface MonitorInfo {
   count: number;
 }
 
+interface AudioDevice {
+  name: string;
+  device_type: "input" | "output";
+}
+
+interface HidDevice {
+  name: string;
+  device_type: "mouse" | "keyboard" | "other";
+}
+
+interface PeripheralSpecs {
+  audio_devices: AudioDevice[];
+  hid_devices: HidDevice[];
+}
+
 function App() {
   const [greetMsg, setGreetMsg] = createSignal("");
   const [name, setName] = createSignal("");
   const [specs, setSpecs] = createSignal<SystemSpecs | null>(null);
   const [monitor, setMonitor] = createSignal<MonitorInfo | null>(null);
+  const [peripherals, setPeripherals] = createSignal<PeripheralSpecs | null>(null);
   const [loading, setLoading] = createSignal(true);
 
   async function greet() {
@@ -30,12 +46,14 @@ function App() {
   async function loadSpecs() {
     setLoading(true);
     try {
-      const [sysSpecs, monitors, primary] = await Promise.all([
+      const [sysSpecs, monitors, primary, periph] = await Promise.all([
         invoke<SystemSpecs>("get_system_specs"),
         availableMonitors(),
         currentMonitor(),
+        invoke<PeripheralSpecs>("get_peripheral_specs"),
       ]);
       setSpecs(sysSpecs);
+      setPeripherals(periph);
       if (primary) {
         setMonitor({
           name: primary.name,
@@ -57,9 +75,13 @@ function App() {
     return `${Math.round(gb)} GB`;
   }
 
-  function formatVram(mb: number): string {
-    if (mb >= 1024) return `${(mb / 1024).toFixed(0)} GB`;
-    return `${mb} MB`;
+  /** Format OS into a short string: "Win 11", "Ubuntu 22.04", "macOS 14" */
+  function formatOs(name: string, version: string): string {
+    const ver = version.split("(")[0].trim(); // strip "(26100)" build numbers
+    if (name === "Windows") return `Win ${ver}`;
+    // Linux: name is the distro (Ubuntu, Debian, Arch Linux, etc.)
+    if (ver) return `${name} ${ver}`;
+    return name;
   }
 
   return (
@@ -108,9 +130,15 @@ function App() {
                 <div class="text-xs opacity-30 mb-1">GPU</div>
                 <div class="font-mono text-sm opacity-25">Detecting...</div>
               </div>
-              <div class="bg-base-300 rounded-box p-3">
-                <div class="text-xs opacity-30 mb-1">RAM</div>
-                <div class="font-mono text-sm opacity-25">Detecting...</div>
+              <div class="bg-base-300 rounded-box p-3 flex">
+                <div class="flex-1">
+                  <div class="text-xs opacity-30 mb-1">RAM</div>
+                  <div class="font-mono text-sm opacity-25">--</div>
+                </div>
+                <div class="flex-1">
+                  <div class="text-xs opacity-30 mb-1">OS</div>
+                  <div class="font-mono text-sm opacity-25">--</div>
+                </div>
               </div>
               <div class="bg-base-300 rounded-box p-3">
                 <div class="text-xs opacity-30 mb-1">Display</div>
@@ -131,60 +159,81 @@ function App() {
                   {specs()?.gpu?.model ?? "Not detected"}
                 </div>
               </div>
-              <div class="bg-base-300 rounded-box p-3">
-                <div class="text-xs opacity-30 mb-1">RAM</div>
-                <div class="font-mono text-sm">
-                  {specs() ? formatRam(specs()!.ram.total_gb) : "--"}
+              <div class="bg-base-300 rounded-box p-3 flex">
+                <div class="flex-1">
+                  <div class="text-xs opacity-30 mb-1">RAM</div>
+                  <div class="font-mono text-sm">
+                    {specs() ? formatRam(specs()!.ram.total_gb) : "--"}
+                  </div>
+                </div>
+                <div class="flex-1">
+                  <div class="text-xs opacity-30 mb-1">OS</div>
+                  <div class="font-mono text-sm truncate">
+                    {specs() ? formatOs(specs()!.os.name, specs()!.os.version) : "--"}
+                  </div>
                 </div>
               </div>
               <div class="bg-base-300 rounded-box p-3">
-                <div class="text-xs opacity-30 mb-1">Display</div>
+                <div class="text-xs opacity-30 mb-1 truncate">
+                  {"Display"}
+                  {monitor() && monitor()!.count > 1 ? ` 1/${monitor()!.count}` : ""}
+                  {specs()?.display.monitor_name ? ` ${specs()!.display.monitor_name}` : ""}
+                </div>
                 <div class="font-mono text-sm truncate">
                   {monitor()?.resolution ?? "--"}
                   {specs()?.display.refresh_hz ? ` @ ${specs()!.display.refresh_hz}Hz` : ""}
                 </div>
               </div>
             </div>
-
-            {/* Expanded details */}
-            <Show when={specs()}>
-              <div class="mt-2 px-3 py-2 rounded-box bg-base-300 text-xs opacity-50 space-y-1">
-                <div class="flex justify-between">
-                  <span>OS</span>
-                  <span class="font-mono">{specs()!.os.name} {specs()!.os.version}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span>CPU Cores</span>
-                  <span class="font-mono">{specs()!.cpu.cores}C / {specs()!.cpu.threads}T</span>
-                </div>
-                <Show when={specs()!.gpu?.vram_mb}>
-                  <div class="flex justify-between">
-                    <span>VRAM</span>
-                    <span class="font-mono">{formatVram(specs()!.gpu!.vram_mb!)}</span>
-                  </div>
-                </Show>
-                <Show when={specs()!.gpu?.driver_version}>
-                  <div class="flex justify-between">
-                    <span>Driver</span>
-                    <span class="font-mono">{specs()!.gpu!.driver_version}</span>
-                  </div>
-                </Show>
-                <Show when={monitor()}>
-                  <Show when={specs()!.display.monitor_name}>
-                    <div class="flex justify-between">
-                      <span>Monitor</span>
-                      <span class="font-mono truncate ml-4">{specs()!.display.monitor_name}</span>
-                    </div>
-                  </Show>
-                  <div class="flex justify-between">
-                    <span>Monitors</span>
-                    <span class="font-mono">{monitor()!.count}</span>
-                  </div>
-                </Show>
-              </div>
-            </Show>
           </Show>
         </section>
+
+        {/* Peripherals */}
+        <Show when={peripherals()}>
+          {(p) => {
+            const mice = () => p().hid_devices.filter(d => d.device_type === "mouse");
+            const keyboards = () => p().hid_devices.filter(d => d.device_type === "keyboard");
+            const microphones = () => p().audio_devices.filter(d => d.device_type === "input");
+
+            const hasAnything = () =>
+              mice().length > 0 || keyboards().length > 0 || microphones().length > 0;
+
+            return (
+              <Show when={hasAnything()}>
+                <div class="divider my-1 opacity-20" />
+                <section>
+                  <h2 class="text-xs font-semibold uppercase tracking-wider opacity-40 mb-2">Peripherals</h2>
+                  <div class="px-3 py-2 rounded-box bg-base-300 text-xs opacity-50 space-y-1">
+                    <For each={mice()}>
+                      {(device) => (
+                        <div class="flex justify-between">
+                          <span>Mouse</span>
+                          <span class="font-mono truncate ml-4">{device.name}</span>
+                        </div>
+                      )}
+                    </For>
+                    <For each={keyboards()}>
+                      {(device) => (
+                        <div class="flex justify-between">
+                          <span>Keyboard</span>
+                          <span class="font-mono truncate ml-4">{device.name}</span>
+                        </div>
+                      )}
+                    </For>
+                    <For each={microphones()}>
+                      {(device) => (
+                        <div class="flex justify-between">
+                          <span>Microphone</span>
+                          <span class="font-mono truncate ml-4">{device.name}</span>
+                        </div>
+                      )}
+                    </For>
+                  </div>
+                </section>
+              </Show>
+            );
+          }}
+        </Show>
 
         <div class="divider my-1 opacity-20" />
 
