@@ -110,23 +110,35 @@ For MVP, use the Firebase JS SDK in the frontend — it handles token lifecycle 
 
 ---
 
-## Changes Needed in Existing Infrastructure
+## Existing Infrastructure (MatchScheduler)
 
-### Discord Developer Portal
-- Add `http://localhost` (with wildcard port, or a few specific ports) to the OAuth2 redirect URIs
+The auth infrastructure already exists in MatchScheduler. Key details:
 
-### Firebase Cloud Functions (if using Option A)
-- The existing `discordAuth` function in MatchScheduler may need a minor update to accept the localhost redirect URI
+- **Discord Client ID:** `1465332663152808031` (public, embedded in frontend)
+- **Cloud Function:** `discordOAuthExchange` (in `MatchScheduler/functions/discord-auth.js`)
+  - Validates code & redirect URI
+  - Exchanges code for Discord access token
+  - Fetches Discord profile (username, ID, avatar)
+  - Creates/finds Firebase Auth user + custom token
+  - Handles phantom account claims and email merging
+- **Firebase project:** `matchscheduler-dev`
+- **Functions region:** `europe-west3`
+
+### Changes Needed
+
+**Discord Developer Portal:**
+- Add `http://localhost` to the OAuth2 redirect URIs (with wildcard port or a few specific ports)
+
+**Cloud Function:**
+- The existing `discordOAuthExchange` function may need a minor update to accept the localhost redirect URI
 - Or create a new endpoint specifically for desktop app auth
 
-### Firestore Security Rules
-- Rules already check `request.auth.uid` — no changes needed as long as the app uses the same Firebase Auth
-
----
+**Firestore Security Rules:**
+- Rules already check `request.auth.uid` — no changes needed
 
 ## Open Questions
 
-- [ ] Use existing `discordAuth` Cloud Function or create a desktop-specific one?
+- [ ] Use existing `discordOAuthExchange` Cloud Function or create a desktop-specific one?
 - [ ] PKCE flow — implement from the start or add later?
 - [ ] How to handle "remember me" / session persistence? (Token refresh vs re-auth)
 - [ ] Should the app also support Google login (like MatchScheduler does)?

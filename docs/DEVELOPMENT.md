@@ -1,0 +1,258 @@
+# Development Environment — Slipgate App
+
+## Why Native Windows (Not WSL)
+
+All other QW projects (MatchScheduler, quad, qw-stats, qw-oracle, slipgate web) run in WSL. **This project is the exception.**
+
+Tauri builds native desktop apps using the OS's own webview:
+- On Windows → WebView2 (Edge/Chromium) → produces `.exe` / `.msi`
+- On Linux → WebKitGTK → produces `.deb` / `.AppImage`
+- On macOS → WebKit → produces `.dmg` / `.app`
+
+Tauri does **not** support cross-compilation. Building in WSL produces Linux binaries, not Windows binaries. Since ~80% of QW players are on Windows, we develop on native Windows to test what most users will run.
+
+Cross-platform builds (Linux + macOS) are handled by GitHub Actions CI.
+
+---
+
+## Prerequisites
+
+All tools installed on **Windows** (not WSL):
+
+### 1. Microsoft C++ Build Tools
+Required by Rust for compiling native code.
+
+- Download from: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+- Select **"Desktop development with C++"** workload
+- This installs MSVC compiler, Windows SDK, and CMake
+
+### 2. WebView2 Runtime
+Tauri uses Edge's WebView2 for rendering the frontend.
+
+- **Windows 10 (v1803+) and Windows 11:** Pre-installed. No action needed.
+- Verify: Search "WebView2" in Windows settings → Apps
+
+### 3. Rust
+The backend language. Install via rustup.
+
+```powershell
+# PowerShell (run as Administrator is NOT required)
+winget install Rustlang.Rustup
+
+# Or download from: https://rustup.rs
+# Choose option 1 (default) when prompted — this installs the MSVC toolchain
+```
+
+After install, restart your terminal, then verify:
+```powershell
+rustc --version    # Should show e.g. rustc 1.83.0
+cargo --version    # Should show e.g. cargo 1.83.0
+```
+
+### 4. Bun
+JavaScript runtime and package manager (replaces Node.js + npm for this project).
+
+```powershell
+winget install Oven-sh.Bun
+
+# Or: powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+Verify:
+```powershell
+bun --version      # Should show e.g. 1.2.x
+```
+
+### 5. Tauri CLI
+Installed as a project dev dependency (via `bun install`), but can also be installed globally:
+
+```powershell
+cargo install tauri-cli --version "^2"
+```
+
+---
+
+## Project Setup (First Time)
+
+```powershell
+# Clone the repo (wherever you keep Windows projects)
+cd C:\Users\Administrator\projects
+git clone <repo-url> slipgate-app
+cd slipgate-app
+
+# Install JS dependencies
+bun install
+
+# Run dev mode — first run compiles Rust (slow), subsequent runs are fast
+bun run tauri dev
+```
+
+The first `tauri dev` will:
+1. Compile the Rust backend (~1-3 minutes first time, cached after)
+2. Start the Vite dev server (SolidJS frontend with hot reload)
+3. Open a native window with your app
+
+---
+
+## Daily Development
+
+```powershell
+# Start dev server with hot reload
+bun run tauri dev
+
+# Build release binary for current platform
+bun run tauri build
+
+# Run frontend only (no Tauri window, just browser)
+bun run dev
+
+# Run Biome linter
+bun run lint
+
+# Run tests
+bun test
+```
+
+### How Tauri Dev Works
+
+```
+┌─────────────────────────────────────────────────┐
+│ bun run tauri dev                               │
+│                                                 │
+│   ┌──────────────┐     ┌──────────────────────┐│
+│   │ Vite dev     │     │ Rust backend          ││
+│   │ server       │◄───►│ (cargo build + run)   ││
+│   │ localhost:   │ IPC │                       ││
+│   │ 1420         │     │ System tray, commands,││
+│   │              │     │ native APIs           ││
+│   │ SolidJS      │     │                       ││
+│   │ hot reload   │     │ Recompiles on Rust    ││
+│   │              │     │ file changes          ││
+│   └──────────────┘     └──────────────────────┘│
+│         │                                       │
+│         ▼                                       │
+│   ┌──────────────┐                              │
+│   │ Native window│                              │
+│   │ (WebView2)   │                              │
+│   └──────────────┘                              │
+└─────────────────────────────────────────────────┘
+```
+
+- **Frontend changes** (SolidJS/CSS): Hot reload, instant
+- **Rust changes**: Triggers recompile (~5-15 seconds), then window refreshes
+- **Tauri config changes** (`tauri.conf.json`): Requires restart of `tauri dev`
+
+---
+
+## Project Structure
+
+After scaffolding with `create-tauri-app`:
+
+```
+slipgate-app/
+├── src-tauri/              # Rust backend
+│   ├── src/
+│   │   ├── main.rs         # Entry point (or lib.rs)
+│   │   └── commands/       # Tauri command handlers (added by us)
+│   ├── Cargo.toml          # Rust dependencies
+│   ├── tauri.conf.json     # Tauri configuration (window, tray, plugins)
+│   ├── icons/              # App icons (all sizes, generated by Tauri)
+│   └── capabilities/       # Tauri v2 permission capabilities
+├── src/                    # SolidJS frontend
+│   ├── App.tsx
+│   ├── index.tsx           # Entry point
+│   └── styles/
+├── index.html              # Vite entry HTML
+├── package.json            # JS dependencies + scripts
+├── vite.config.ts          # Vite config with SolidJS plugin
+├── tsconfig.json           # TypeScript config
+├── biome.json              # Linter config
+└── bun.lock                # Lockfile
+```
+
+---
+
+## Tauri v2 Key Concepts
+
+### Commands (Rust ↔ Frontend communication)
+Rust functions exposed to the frontend via `#[tauri::command]`:
+
+```rust
+// src-tauri/src/commands/system.rs
+#[tauri::command]
+fn get_cpu_info() -> String {
+    // Use sysinfo crate to get CPU model
+    "AMD Ryzen 7 5800X".to_string()
+}
+```
+
+```typescript
+// src/App.tsx
+import { invoke } from '@tauri-apps/api/core';
+
+const cpuInfo = await invoke<string>('get_cpu_info');
+```
+
+### Plugins
+Tauri v2 uses a plugin system for extended functionality:
+- `tauri-plugin-store` — Persistent key-value storage (for auth tokens)
+- `tauri-plugin-shell` — Open URLs in browser (for OAuth)
+- `tauri-plugin-notification` — Desktop notifications
+- `tauri-plugin-updater` — Auto-update from GitHub Releases
+- `tauri-plugin-autostart` — Start on login
+
+Plugins are added in `Cargo.toml` (Rust) and `package.json` (JS bindings).
+
+### Capabilities (Permissions)
+Tauri v2 uses a capability-based permission system. Each capability grants the frontend access to specific APIs. Defined in `src-tauri/capabilities/`.
+
+---
+
+## GitHub Actions (CI/CD)
+
+Cross-platform builds are handled by `tauri-action`:
+
+- **Trigger:** Push to `main` or create a git tag
+- **Matrix:** Windows, Linux (Ubuntu), macOS (ARM + Intel)
+- **Output:** Binaries + installers uploaded to GitHub Releases
+- **Auto-updater:** Generates `latest.json` for the Tauri updater plugin
+
+Signing keys for the auto-updater are stored as GitHub Secrets:
+- `TAURI_SIGNING_PRIVATE_KEY`
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
+
+---
+
+## Differences from Other QW Projects
+
+| | Other QW Projects | Slipgate App |
+|---|---|---|
+| **Environment** | WSL (Ubuntu) | Windows native |
+| **Shell** | bash | PowerShell / cmd |
+| **Package manager** | npm | Bun |
+| **Runtime** | Node.js | Bun (frontend) + Rust (backend) |
+| **Editor** | VSCode (WSL remote) | VSCode (local Windows) |
+| **Git** | WSL git | Windows git |
+| **Deploy** | SSH / Firebase CLI | GitHub Releases (auto via CI) |
+
+---
+
+## Troubleshooting
+
+### Rust compilation is slow
+First compile downloads and builds all dependencies. Subsequent builds use cache and are much faster. If it's consistently slow:
+- Check antivirus isn't scanning `target/` directory — add exclusion for project folder
+- Consider using `cargo install sccache` for shared compilation cache
+
+### WebView2 not found
+Should be pre-installed on Windows 10/11. If missing:
+- Download from: https://developer.microsoft.com/en-us/microsoft-edge/webview2/
+- Install the "Evergreen Bootstrapper"
+
+### `tauri dev` window is blank
+- Check the Vite dev server started (look for `localhost:1420` in terminal output)
+- Try `bun run dev` first to verify the frontend works standalone in a browser
+
+### Bun not recognized after install
+- Close and reopen your terminal
+- Check that Bun's path is in your system PATH environment variable

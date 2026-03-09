@@ -11,6 +11,8 @@ The desktop app's frontend IS web tech (rendered in Tauri's OS webview). This me
 
 When infiniti finalizes the Harmonizer ramp and primary/secondary hues, both projects consume the same exported CSS variables. Change the theme once, it updates everywhere.
 
+Design system reference docs (in WSL): `\\wsl.localhost\Ubuntu\home\paradoks\projects\quake\slipgate\DESIGN-SYSTEM.md` and `COLOR-PALETTE.md`.
+
 ---
 
 ## Desktop App UI Patterns
