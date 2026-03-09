@@ -50,10 +50,11 @@ pub fn get_system_specs() -> SystemSpecs {
 
     let cpu = {
         let cpus = sys.cpus();
-        let model = cpus
+        let raw_model = cpus
             .first()
             .map(|c| c.brand().to_string())
             .unwrap_or_else(|| "Unknown".into());
+        let model = clean_cpu_model(&raw_model);
         let threads = cpus.len();
         let cores = sys.physical_core_count().unwrap_or(threads);
         CpuInfo { model, cores, threads }
@@ -155,4 +156,40 @@ fn get_display_info() -> DisplayInfo {
 #[cfg(not(target_os = "windows"))]
 fn get_display_info() -> DisplayInfo {
     DisplayInfo { refresh_hz: None, monitor_name: None }
+}
+
+/// Clean up verbose CPU brand strings.
+/// "AMD Ryzen 9 3900X 12-Core Processor" → "AMD Ryzen 9 3900X"
+/// "Intel(R) Core(TM) i9-13900K" → "Intel Core i9-13900K"
+/// "13th Gen Intel(R) Core(TM) i9-13900K" → "Intel Core i9-13900K"
+fn clean_cpu_model(raw: &str) -> String {
+    let mut s = raw.to_string();
+
+    // Remove Intel trademark noise
+    s = s.replace("(R)", "").replace("(TM)", "").replace("(tm)", "");
+
+    // Remove "Nth Gen " prefix (Intel)
+    if let Some(idx) = s.find("Gen ") {
+        s = s[idx + 4..].to_string();
+    }
+
+    // Remove "N-Core Processor" suffix (AMD)
+    if let Some(idx) = s.find("-Core Processor") {
+        // Walk back to find the space before the core count
+        if let Some(space_idx) = s[..idx].rfind(' ') {
+            s = s[..space_idx].to_string();
+        }
+    }
+
+    // Remove " Processor" suffix if still present
+    if s.ends_with(" Processor") {
+        s = s[..s.len() - " Processor".len()].to_string();
+    }
+
+    // Collapse multiple spaces
+    while s.contains("  ") {
+        s = s.replace("  ", " ");
+    }
+
+    s.trim().to_string()
 }
