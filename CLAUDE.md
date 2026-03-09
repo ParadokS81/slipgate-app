@@ -1,6 +1,6 @@
 # Slipgate App — Desktop Companion for QuakeWorld
 
-**Status: Active development — Tier 1 MVP in progress.**
+**Status: Active development.** See `docs/ROADMAP.md` for what's built and what's next.
 
 A cross-platform system tray application that bridges the QuakeWorld game client, the user's computer, and the Slipgate web hub. Built with Tauri v2 (Rust backend + SolidJS frontend).
 
@@ -82,33 +82,39 @@ Key rules:
 - When infiniti's Harmonizer export is ready, both projects consume the same CSS variables
 - Dark theme is the default (gamers expect it)
 
-## Project Structure (Planned)
+## Project Structure
 
 ```
 slipgate-app/
-├── CLAUDE.md              # This file
-├── docs/                  # Planning documents
-│   ├── VISION.md          # What and why
-│   ├── FEATURES.md        # Feature ideas by priority
+├── CLAUDE.md              # This file — project context for Claude
+├── docs/                  # Planning & reference
+│   ├── ROADMAP.md         # Living roadmap: done / planned / ideas
+│   ├── FEATURES.md        # Original feature ideas by tier
+│   ├── PERIPHERAL-SELECTOR.md  # Research for EloShapes-backed selector
 │   ├── SYSTEM-SPECS.md    # What specs to collect and how
 │   ├── AUTH.md            # Discord OAuth in Tauri
 │   ├── DESIGN.md          # Design approach and UI patterns
-│   └── DEVELOPMENT.md     # Environment setup and dev workflow
+│   ├── DEVELOPMENT.md     # Environment setup and dev workflow
+│   └── VISION.md          # What and why
 ├── src-tauri/             # Rust backend (Tauri commands)
 │   ├── src/
-│   │   ├── main.rs
-│   │   ├── commands/      # Tauri command handlers
-│   │   │   ├── system.rs  # System specs collection
-│   │   │   ├── ezquake.rs # ezQuake detection and config reading
-│   │   │   └── auth.rs    # OAuth flow management
-│   │   └── lib.rs
+│   │   ├── main.rs        # Entry point
+│   │   ├── lib.rs         # Tauri app builder, command registration
+│   │   └── commands/
+│   │       ├── mod.rs
+│   │       └── system.rs  # System specs + peripheral detection
 │   ├── Cargo.toml
 │   └── tauri.conf.json
 ├── src/                   # SolidJS frontend
-│   ├── App.tsx
-│   ├── components/
-│   ├── pages/
-│   └── styles/
+│   ├── index.tsx          # SolidJS entry
+│   ├── App.tsx            # Root component (tab router, spec loading)
+│   ├── types.ts           # TypeScript types matching Rust structs
+│   ├── app.css            # Tailwind + DaisyUI theme
+│   └── components/
+│       ├── TabNav.tsx      # Tab navigation bar
+│       ├── ProfileTab.tsx  # System specs + peripherals display
+│       ├── ScheduleTab.tsx # Placeholder
+│       └── SettingsTab.tsx # Placeholder
 ├── package.json
 └── vite.config.ts
 ```
@@ -124,7 +130,7 @@ Tauri supports Windows, macOS, and Linux from a single codebase.
 
 Platform-specific code is minimal:
 - **ezQuake paths**: `%APPDATA%\ezQuake\` (Windows), `~/.ezquake/` (Linux), `~/Library/Application Support/ezQuake/` (Mac)
-- **GPU detection**: WMI/DXGI (Windows), `/proc/` + `lspci` (Linux), `system_profiler` (Mac) — `wgpu` crate handles most cross-platform
+- **GPU/peripherals**: WMI + SetupAPI (Windows), `/proc/` + `lspci` (Linux), `system_profiler` (Mac)
 - **Process names**: `ezquake.exe` vs `ezquake-linux-x86_64` vs `ezQuake.app`
 
 Everything else (tray icon, notifications, autostart, deep links, auto-updater) is handled by Tauri plugins cross-platform.
