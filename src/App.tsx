@@ -1,12 +1,65 @@
-import { createSignal } from "solid-js";
+import { createSignal, onMount, Show } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { currentMonitor, availableMonitors } from "@tauri-apps/api/window";
+
+interface SystemSpecs {
+  cpu: { model: string; cores: number; threads: number };
+  gpu: { model: string; vram_mb: number | null; driver_version: string | null } | null;
+  ram: { total_gb: number };
+  os: { name: string; version: string; arch: string };
+  display: { refresh_hz: number | null; monitor_name: string | null };
+}
+
+interface MonitorInfo {
+  name: string | null;
+  resolution: string;
+  count: number;
+}
 
 function App() {
   const [greetMsg, setGreetMsg] = createSignal("");
   const [name, setName] = createSignal("");
+  const [specs, setSpecs] = createSignal<SystemSpecs | null>(null);
+  const [monitor, setMonitor] = createSignal<MonitorInfo | null>(null);
+  const [loading, setLoading] = createSignal(true);
 
   async function greet() {
     setGreetMsg(await invoke("greet", { name: name() }));
+  }
+
+  async function loadSpecs() {
+    setLoading(true);
+    try {
+      const [sysSpecs, monitors, primary] = await Promise.all([
+        invoke<SystemSpecs>("get_system_specs"),
+        availableMonitors(),
+        currentMonitor(),
+      ]);
+      setSpecs(sysSpecs);
+      if (primary) {
+        setMonitor({
+          name: primary.name,
+          resolution: `${primary.size.width}x${primary.size.height}`,
+          count: monitors.length,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to load specs:", e);
+    }
+    setLoading(false);
+  }
+
+  onMount(() => {
+    loadSpecs();
+  });
+
+  function formatRam(gb: number): string {
+    return `${Math.round(gb)} GB`;
+  }
+
+  function formatVram(mb: number): string {
+    if (mb >= 1024) return `${(mb / 1024).toFixed(0)} GB`;
+    return `${mb} MB`;
   }
 
   return (
@@ -34,30 +87,103 @@ function App() {
 
         <div class="divider my-1 opacity-20" />
 
-        {/* System specs placeholder */}
+        {/* System specs */}
         <section>
           <div class="flex items-center justify-between mb-2">
             <h2 class="text-xs font-semibold uppercase tracking-wider opacity-40">System</h2>
-            <button class="text-xs opacity-30 hover:opacity-60 transition-opacity">Refresh</button>
+            <button
+              class="text-xs opacity-30 hover:opacity-60 transition-opacity"
+              onClick={loadSpecs}
+            >
+              Refresh
+            </button>
           </div>
-          <div class="grid grid-cols-2 gap-2">
-            <div class="bg-base-300 rounded-box p-3">
-              <div class="text-xs opacity-30 mb-1">CPU</div>
-              <div class="font-mono text-sm">Detecting...</div>
+          <Show when={!loading()} fallback={
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-base-300 rounded-box p-3">
+                <div class="text-xs opacity-30 mb-1">CPU</div>
+                <div class="font-mono text-sm opacity-25">Detecting...</div>
+              </div>
+              <div class="bg-base-300 rounded-box p-3">
+                <div class="text-xs opacity-30 mb-1">GPU</div>
+                <div class="font-mono text-sm opacity-25">Detecting...</div>
+              </div>
+              <div class="bg-base-300 rounded-box p-3">
+                <div class="text-xs opacity-30 mb-1">RAM</div>
+                <div class="font-mono text-sm opacity-25">Detecting...</div>
+              </div>
+              <div class="bg-base-300 rounded-box p-3">
+                <div class="text-xs opacity-30 mb-1">Display</div>
+                <div class="font-mono text-sm opacity-25">Detecting...</div>
+              </div>
             </div>
-            <div class="bg-base-300 rounded-box p-3">
-              <div class="text-xs opacity-30 mb-1">GPU</div>
-              <div class="font-mono text-sm">Detecting...</div>
+          }>
+            <div class="grid grid-cols-2 gap-2">
+              <div class="bg-base-300 rounded-box p-3">
+                <div class="text-xs opacity-30 mb-1">CPU</div>
+                <div class="font-mono text-sm truncate" title={specs()?.cpu.model}>
+                  {specs()?.cpu.model}
+                </div>
+              </div>
+              <div class="bg-base-300 rounded-box p-3">
+                <div class="text-xs opacity-30 mb-1">GPU</div>
+                <div class="font-mono text-sm truncate" title={specs()?.gpu?.model}>
+                  {specs()?.gpu?.model ?? "Not detected"}
+                </div>
+              </div>
+              <div class="bg-base-300 rounded-box p-3">
+                <div class="text-xs opacity-30 mb-1">RAM</div>
+                <div class="font-mono text-sm">
+                  {specs() ? formatRam(specs()!.ram.total_gb) : "--"}
+                </div>
+              </div>
+              <div class="bg-base-300 rounded-box p-3">
+                <div class="text-xs opacity-30 mb-1">Display</div>
+                <div class="font-mono text-sm truncate">
+                  {monitor()?.resolution ?? "--"}
+                  {specs()?.display.refresh_hz ? ` @ ${specs()!.display.refresh_hz}Hz` : ""}
+                </div>
+              </div>
             </div>
-            <div class="bg-base-300 rounded-box p-3">
-              <div class="text-xs opacity-30 mb-1">RAM</div>
-              <div class="font-mono text-sm opacity-25">--</div>
-            </div>
-            <div class="bg-base-300 rounded-box p-3">
-              <div class="text-xs opacity-30 mb-1">Display</div>
-              <div class="font-mono text-sm opacity-25">--</div>
-            </div>
-          </div>
+
+            {/* Expanded details */}
+            <Show when={specs()}>
+              <div class="mt-2 px-3 py-2 rounded-box bg-base-300 text-xs opacity-50 space-y-1">
+                <div class="flex justify-between">
+                  <span>OS</span>
+                  <span class="font-mono">{specs()!.os.name} {specs()!.os.version}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span>CPU Cores</span>
+                  <span class="font-mono">{specs()!.cpu.cores}C / {specs()!.cpu.threads}T</span>
+                </div>
+                <Show when={specs()!.gpu?.vram_mb}>
+                  <div class="flex justify-between">
+                    <span>VRAM</span>
+                    <span class="font-mono">{formatVram(specs()!.gpu!.vram_mb!)}</span>
+                  </div>
+                </Show>
+                <Show when={specs()!.gpu?.driver_version}>
+                  <div class="flex justify-between">
+                    <span>Driver</span>
+                    <span class="font-mono">{specs()!.gpu!.driver_version}</span>
+                  </div>
+                </Show>
+                <Show when={monitor()}>
+                  <Show when={specs()!.display.monitor_name}>
+                    <div class="flex justify-between">
+                      <span>Monitor</span>
+                      <span class="font-mono truncate ml-4">{specs()!.display.monitor_name}</span>
+                    </div>
+                  </Show>
+                  <div class="flex justify-between">
+                    <span>Monitors</span>
+                    <span class="font-mono">{monitor()!.count}</span>
+                  </div>
+                </Show>
+              </div>
+            </Show>
+          </Show>
         </section>
 
         <div class="divider my-1 opacity-20" />
