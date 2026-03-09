@@ -27,3 +27,27 @@ export interface MonitorInfo {
   resolution: string;
   count: number;
 }
+
+// EloShapes data types
+export interface MouseEntry {
+  handle: string;
+  brand: string;
+  model: string;
+  weight: number | null;
+  wireless: boolean | null;
+}
+
+export interface MousepadEntry {
+  handle: string;
+  brand: string;
+  model: string;
+}
+
+// User's gear selections (frontend state)
+export interface GearProfile {
+  mouse: { handle: string; brand: string; model: string } | null;
+  mousepad: { handle: string; brand: string; model: string } | null;
+  keyboardName: string | null;
+  dpi: number | null;
+  sensitivity: number | null;
+}
