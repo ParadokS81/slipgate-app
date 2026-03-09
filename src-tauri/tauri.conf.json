@@ -14,8 +14,10 @@
       {
         "label": "main",
         "title": "Slipgate",
-        "width": 400,
-        "height": 500,
+        "width": 820,
+        "height": 560,
+        "minWidth": 620,
+        "minHeight": 400,
         "visible": false
       }
     ],
