@@ -88,6 +88,38 @@ ELSE:
 
 Note: `r_mode` does NOT exist in ezQuake. It's a Quake 3 / id Tech 3 cvar.
 
+## The "Absent = Default" Pattern
+
+ezQuake's `cfg_save_unchanged 0` (the **default**) means only non-default cvar values are written to `config.cfg`. This is the core challenge of config-based detection: **most players' configs are missing the very cvars we need**, because their settings match the defaults.
+
+Our strategy: we maintain a table of known defaults in the Rust parser (`default_cvars()` in `ezquake.rs`). When a cvar is absent from the config file, we use the default value. Since we know the defaults, absence is not ambiguity — it's information.
+
+### Decision table for resolution
+
+| `vid_fullscreen` in cfg | `vid_usedesktopres` in cfg | `vid_width` in cfg | What player is using | What we show |
+|---|---|---|---|---|
+| absent (default `1`) | absent (default `1`) | absent (default `0`) | Desktop res, fullscreen | Desktop res from system scan |
+| absent (default `1`) | `0` | present, > 0 | Custom fullscreen res | `vid_width x vid_height` |
+| absent (default `1`) | `0` | absent (default `0`) | ezQuake fallback 1024x768 | Desktop res* |
+| `0` | n/a | n/a | Windowed mode | `vid_win_width x vid_win_height` |
+
+*Edge case: `vid_usedesktopres 0` + `vid_width 0` → ezQuake uses 1024x768, but we can't distinguish this from the common case where both are absent/default. This affects ~0% of players so we accept the inaccuracy.
+
+### What we always know vs. what we deduce
+
+- **Always known:** Desktop resolution (from Tauri's `currentMonitor()` API — independent of any game client)
+- **Deduced from config:** Whether the player uses desktop res or a custom resolution
+- **Runtime-only (invisible to us):** The `auto` value that ezQuake computes internally (e.g. `default 0, current 0, auto 2560`). This never appears in `config.cfg`.
+
+### Applying this pattern to future clients
+
+Other QW clients (fteqw, vkQuake, etc.) will have different config formats and default behaviors. The general approach remains the same:
+
+1. Know the client's defaults for the cvars we care about
+2. Parse the config, filling in defaults for absent values
+3. Fall back to desktop resolution when the config doesn't specify one
+4. Document client-specific quirks (like `cfg_save_unchanged`) in this doc
+
 ## Platform Behavior
 
 The resolution logic is **platform-independent** (all SDL2). Platform-specific code only exists for:
