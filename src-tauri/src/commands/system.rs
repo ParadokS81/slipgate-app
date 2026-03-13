@@ -18,6 +18,7 @@ pub struct GpuInfo {
 #[derive(Serialize)]
 pub struct RamInfo {
     pub total_gb: f64,
+    pub ddr_generation: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -31,6 +32,7 @@ pub struct OsInfo {
 pub struct DisplayInfo {
     pub refresh_hz: Option<u32>,
     pub monitor_name: Option<String>,
+    pub manufacturer: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -78,9 +80,7 @@ pub fn get_all_specs() -> AllSpecs {
         CpuInfo { model, cores, threads }
     };
 
-    let ram = RamInfo {
-        total_gb: (sys.total_memory() as f64) / 1_073_741_824.0,
-    };
+    let ram_total_gb = (sys.total_memory() as f64) / 1_073_741_824.0;
 
     let os = OsInfo {
         name: System::name().unwrap_or_else(|| "Unknown".into()),
@@ -88,8 +88,13 @@ pub fn get_all_specs() -> AllSpecs {
         arch: std::env::consts::ARCH.to_string(),
     };
 
-    // --- Platform-specific: GPU, display, peripherals ---
-    let (gpu, display, audio_devices, hid_devices) = get_platform_specs();
+    // --- Platform-specific: GPU, display, peripherals, DDR ---
+    let (gpu, display, audio_devices, hid_devices, ddr_generation) = get_platform_specs();
+
+    let ram = RamInfo {
+        total_gb: ram_total_gb,
+        ddr_generation,
+    };
 
     AllSpecs {
         cpu,
@@ -107,8 +112,8 @@ pub fn get_all_specs() -> AllSpecs {
 // ============================================================
 
 #[cfg(target_os = "windows")]
-fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<HidDevice>) {
-    let empty_display = DisplayInfo { refresh_hz: None, monitor_name: None };
+fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<HidDevice>, Option<String>) {
+    let empty_display = DisplayInfo { refresh_hz: None, monitor_name: None, manufacturer: None };
 
     // Tauri's thread pool already initializes COM (MTA mode).
     // COMLibrary::new() would fail with RPC_E_CHANGED_MODE.
@@ -116,7 +121,7 @@ fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<
     let com = unsafe { wmi::COMLibrary::assume_initialized() };
     let conn = match wmi::WMIConnection::new(com) {
         Ok(c) => c,
-        Err(_) => return (None, empty_display, Vec::new(), Vec::new()),
+        Err(_) => return (None, empty_display, Vec::new(), Vec::new(), None),
     };
 
     // --- GPU ---
@@ -143,26 +148,34 @@ fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<
     });
     let refresh_hz = best_gpu.as_ref().and_then(|g| g.CurrentRefreshRate);
 
-    // --- Monitor name (root\WMI namespace) ---
+    // --- Monitor name + manufacturer (root\WMI namespace) ---
     #[allow(non_snake_case)]
     #[derive(serde::Deserialize)]
-    struct MonRow { UserFriendlyName: Option<Vec<u16>> }
+    struct MonRow {
+        UserFriendlyName: Option<Vec<u16>>,
+        ManufacturerName: Option<Vec<u16>>,
+    }
 
-    let monitor_name = wmi::WMIConnection::with_namespace_path("root\\WMI", com)
+    let (monitor_name, manufacturer) = wmi::WMIConnection::with_namespace_path("root\\WMI", com)
         .ok()
         .and_then(|wmi_root| {
             let monitors: Vec<MonRow> = wmi_root
-                .raw_query("SELECT UserFriendlyName FROM WmiMonitorID")
+                .raw_query("SELECT UserFriendlyName, ManufacturerName FROM WmiMonitorID")
                 .unwrap_or_default();
-            monitors.into_iter().next().and_then(|m| {
-                m.UserFriendlyName.map(|bytes| {
+            monitors.into_iter().next().map(|m| {
+                let name = m.UserFriendlyName.map(|bytes| {
                     bytes.iter().filter(|&&b| b != 0).map(|&b| char::from(b as u8)).collect::<String>()
-                })
+                }).filter(|s| !s.is_empty());
+                let mfr_code = m.ManufacturerName.map(|bytes| {
+                    bytes.iter().filter(|&&b| b != 0).map(|&b| char::from(b as u8)).collect::<String>()
+                }).filter(|s| !s.is_empty());
+                let mfr = mfr_code.and_then(|code| edid_manufacturer(&code));
+                (name, mfr)
             })
         })
-        .filter(|s| !s.is_empty());
+        .unwrap_or((None, None));
 
-    let display = DisplayInfo { refresh_hz, monitor_name };
+    let display = DisplayInfo { refresh_hz, monitor_name, manufacturer };
 
     // --- Audio endpoints (native WMI — good names) ---
     #[allow(non_snake_case)]
@@ -193,7 +206,26 @@ fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<
     // --- USB HID devices (native SetupAPI — fast, no PowerShell) ---
     let hid_devices = get_usb_hid_devices();
 
-    (gpu, display, audio_devices, hid_devices)
+    // --- DDR generation (WMI Win32_PhysicalMemory) ---
+    #[allow(non_snake_case)]
+    #[derive(serde::Deserialize)]
+    struct MemRow { SMBIOSMemoryType: Option<u32> }
+
+    let ddr_generation = conn
+        .raw_query::<MemRow>("SELECT SMBIOSMemoryType FROM Win32_PhysicalMemory")
+        .ok()
+        .and_then(|rows| rows.into_iter().next())
+        .and_then(|row| row.SMBIOSMemoryType)
+        .and_then(|smbios_type| match smbios_type {
+            20 => Some("DDR".into()),
+            21 => Some("DDR2".into()),
+            24 => Some("DDR3".into()),
+            26 => Some("DDR4".into()),
+            34 => Some("DDR5".into()),
+            _ => None,
+        });
+
+    (gpu, display, audio_devices, hid_devices, ddr_generation)
 }
 
 /// Get USB HID device names via native Windows SetupAPI.
@@ -353,8 +385,8 @@ unsafe fn get_devnode_string_property(
 // ============================================================
 
 #[cfg(not(target_os = "windows"))]
-fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<HidDevice>) {
-    (None, DisplayInfo { refresh_hz: None, monitor_name: None }, Vec::new(), Vec::new())
+fn get_platform_specs() -> (Option<GpuInfo>, DisplayInfo, Vec<AudioDevice>, Vec<HidDevice>, Option<String>) {
+    (None, DisplayInfo { refresh_hz: None, monitor_name: None, manufacturer: None }, Vec::new(), Vec::new(), None)
 }
 
 // ============================================================
@@ -372,6 +404,29 @@ fn extract_device_name(endpoint_name: &str) -> String {
         }
     }
     endpoint_name.to_string()
+}
+
+/// Map EDID 3-letter manufacturer codes to brand names.
+fn edid_manufacturer(code: &str) -> Option<String> {
+    match code {
+        "AUS" => Some("ASUS".into()),
+        "GSM" => Some("LG".into()),
+        "SAM" | "SEC" => Some("Samsung".into()),
+        "DEL" => Some("Dell".into()),
+        "ACR" => Some("Acer".into()),
+        "BNQ" => Some("BenQ".into()),
+        "HWP" => Some("HP".into()),
+        "AOC" => Some("AOC".into()),
+        "MSI" => Some("MSI".into()),
+        "VSC" => Some("ViewSonic".into()),
+        "PHI" | "PHL" => Some("Philips".into()),
+        "IVM" => Some("Iiyama".into()),
+        "EIZ" | "ENC" => Some("EIZO".into()),
+        "GBT" => Some("Gigabyte".into()),
+        "NEC" | "NCP" => Some("NEC".into()),
+        "LEN" => Some("Lenovo".into()),
+        _ => None,
+    }
 }
 
 /// Clean verbose CPU brand strings.

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Document</title>
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<main class="canvas">
+
+		<section class="reference_section">
+			<h2 class="section_title">Application Header</h2>
+
+			<div class="grid">
+				<div class="col_12">
+				<div class="app_header_preview box">
+						<div class="app_row">
+							<div class="app_row_title">Slipgate</div>
+							<hr class="vsep">
+							<div class="app_row_button">
+								<div class="app_row_button_close">
+									<svg viewBox="0 0 14 14" fill="currentColor">
+										<path d="M9,7 C9,7.164 9.173,7.317 9.453,7.453 L14,12 L12,14 L7.453,9.453 C7.317,9.173 7.164,9 7,9 C6.836,9 6.683,9.173 6.547,9.453 L2,14 L0,12 L4.547,7.453 C4.827,7.317 5,7.164 5,7 C5,6.836 4.827,6.683 4.547,6.547 L0,2 L2,0 L6.547,4.547 C6.683,4.827 6.836,5 7,5 C7.164,5 7.317,4.827 7.453,4.547 L12,0 L14,2 L9.453,6.547 C9.173,6.683 9,6.836 9,7 Z"/>
+									</svg>
+								</div>
+							</div>
+						</div>
+						<hr class="hsep">
+						<div class="tabs_container small">
+							<div class="tab">Schedule</div>
+							<div class="tab selected">Profile</div>
+							<div class="tab">Settings</div>
+						</div>
+					</div>
+
+				<div class="col_12">
+				<div class="spec_box">
+					Simple gradient standard box for raised sections, box-shadow uses inner shadows so as not to add height to element.
+				</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="reference_section">
+			<h2 class="section_title">Tabs - small</h2>
+
+			<div class="grid">
+				<div class="col_12">
+					<div class="tabbed_view_selector_preview box">
+						<div class="tabs_container small">
+							<div class="tab">Schedule</div>
+							<div class="tab selected">Profile</div>
+							<div class="tab">Settings</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="col_12">
+				<div class="spec_box">
+					Simple way of navigation between different views of the app, works nicely for 2-5 alternatives. More than that and it's time to rethink app hierarchy.
+				</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="reference_section">
+			<h2 class="section_title">Tabs - medium</h2>
+
+			<div class="grid">
+				<div class="col_12">
+					<div class="tabbed_view_selector_preview box">
+						<div class="tabs_container medium">
+							<div class="tab">Schedule</div>
+							<div class="tab selected">Profile</div>
+							<div class="tab">Settings</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="col_12">
+				<div class="spec_box">
+					Slightly larger areas.
+				</div>
+				</div>
+			</div>
+		</section>
+
+		<section class="reference_section">
+			<h2 class="section_title">Tabs + horizontal separator line + caption + table headers + calendar</h2>
+
+			<div class="grid">
+				<div class="col_12">
+					<div class="tabbed_view_selector_preview box">
+						<div class="tabs_container small">
+							<div class="tab selected">Schedule</div>
+							<div class="tab">Profile</div>
+							<div class="tab">Settings</div>
+						</div>
+						<hr class="hsep">
+						<div class="caption_row">
+							Week 12
+						</div>
+						<hr class="hsep">
+						<div class="table_header_container small">
+							<div class="table_header_col">time</div>
+							<div class="table_header_col disabled">Mon 16th</div>
+							<div class="table_header_col">Tue 17th</div>
+							<div class="table_header_col">Wed 18th</div>
+							<div class="table_header_col">Thu 19th</div>
+							<div class="table_header_col">Fri 20th</div>
+							<div class="table_header_col">Sat 21th</div>
+							<div class="table_header_col">Sun 22th</div>
+						</div>
+					</div>
+					<article class="calendar">
+						<div class="caption">19:30</div>
+						<div class="timeslot disabled">abc</div>
+						<div class="timeslot empty">
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c1"></div>
+							<div class="dot c2"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+
+						<div class="caption">20:00</div>
+						<div class="timeslot disabled">abc</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot filled self">
+							<div class="dot c1"></div>
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+
+						<div class="caption">20:30</div>
+						<div class="timeslot disabled">abc</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot filled">
+							<div class="dot c1"></div>
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot filled">
+							<div class="dot c1"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+							<div class="dot c5"></div>
+						</div>
+
+						<div class="caption">21:00</div>
+						<div class="timeslot disabled">abc</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot filled">
+							<div class="dot c1"></div>
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot filled">
+							<div class="dot c1"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+							<div class="dot c5"></div>
+						</div>
+
+						<div class="caption">21:30</div>
+						<div class="timeslot disabled">abc</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot filled">
+							<div class="dot c1"></div>
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot filled">
+							<div class="dot c1"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+							<div class="dot c5"></div>
+						</div>
+
+						<div class="caption">22:30</div>
+						<div class="timeslot disabled">abc</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot filled">
+							<div class="dot c1"></div>
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c1"></div>
+							<div class="dot c4"></div>
+						</div>
+
+						<div class="caption">23:00</div>
+						<div class="timeslot disabled">abc</div>
+						<div class="timeslot empty">
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+							<div class="dot c4"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c1"></div>
+							<div class="dot c2"></div>
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c3"></div>
+						</div>
+						<div class="timeslot empty">
+							<div class="dot c1"></div>
+							<div class="dot c4"></div>
+						</div>
+					</article>
+				</div>
+
+				<div class="col_12">
+				<div class="spec_box">
+					Some thrown together test of a calendar/scheduler view, but very much shrunk down to the essentials.
+				</div>
+			</div>
+		</section>
+
+		<section class="reference_section">
+			<h2 class="section_title">Profile example</h2>
+
+			<div class="grid">
+				<div class="col_12">
+
+					<div class="app_header_preview box">
+						<div class="app_row">
+							<div class="app_row_title">Slipgate</div>
+							<hr class="vsep">
+							<div class="app_row_button">
+								<div class="app_row_button_close">
+									<svg viewBox="0 0 14 14" fill="currentColor">
+										<path d="M9,7 C9,7.164 9.173,7.317 9.453,7.453 L14,12 L12,14 L7.453,9.453 C7.317,9.173 7.164,9 7,9 C6.836,9 6.683,9.173 6.547,9.453 L2,14 L0,12 L4.547,7.453 C4.827,7.317 5,7.164 5,7 C5,6.836 4.827,6.683 4.547,6.547 L0,2 L2,0 L6.547,4.547 C6.683,4.827 6.836,5 7,5 C7.164,5 7.317,4.827 7.453,4.547 L12,0 L14,2 L9.453,6.547 C9.173,6.683 9,6.836 9,7 Z"/>
+									</svg>
+								</div>
+							</div>
+						</div>
+						<hr class="hsep">
+						<div class="tabs_container small">
+							<div class="tab">Schedule</div>
+							<div class="tab selected">Profile</div>
+							<div class="tab">Settings</div>
+						</div>
+					</div>
+
+					<article class="profile grid">
+						<h3 class="col_12">About</h3>
+						<div class="col_12 stat_box">
+							<header>Nick</header>
+							<footer contenteditable="true">gnoffa</footer>
+						</div>
+						<div class="col_4 stat_box">
+							<header>Started playing</header>
+							<footer>1996</footer>
+						</div>
+						<div class="col_4 stat_box">
+							<header>Nationality</header>
+							<footer>Sweden</footer>
+						</div>
+						<div class="col_4 stat_box">
+							<header>Plays</header>
+							<footer>4on4</footer>
+						</div>
+						<h3 class="col_12">Battlestation</h3>
+						<div class="col_6 stat_box">
+							<header>CPU</header>
+							<footer>AMD Ryzen 7 9800X3D</footer>
+						</div>
+						<div class="col_6 stat_box">
+							<header>GPU</header>
+							<footer>RADEON™ RX 9070 XT GAMING OC 16 GB</footer>
+						</div>
+						<div class="col_6 stat_box">
+							<header>RAM</header>
+							<footer>32GB DDR5 6000Mhz CL36</footer>
+						</div>
+						<div class="col_6 stat_box">
+							<header>Display</header>
+							<footer>LG 32GS95UV-B 4K@240/1080p@480hz</footer>
+						</div>
+						<h3 class="col_12">Peripherals</h3>
+						<div class="col_4 stat_box">
+							<header>Operating system</header>
+							<footer>Windows 11</footer>
+						</div>
+						<div class="col_4 stat_box">
+							<header>Mouse</header>
+							<footer>G-Wolves Fenrir Asym 8K</footer>
+						</div>
+						<div class="col_4 stat_box">
+							<header>Mousepad</header>
+							<footer>LGG Jupiter Pro XL</footer>
+						</div>
+						<div class="col_4 stat_box">
+							<header>Keyboard</header>
+							<footer>NuPhy Air60 HE</footer>
+						</div>
+						<div class="col_4 stat_box">
+							<header>Headset</header>
+							<footer>Sony INZONE H9 II</footer>
+						</div>
+						<div class="col_4 stat_box">
+							<header>Case</header>
+							<footer>Fractal North XL</footer>
+						</div>
+					</article>
+
+					<div class="app_footer_preview">
+						<span>Status text field.</span>
+					</div>
+				</div>
+
+				<div class="col_12">
+				<div class="spec_box">
+					Some boxes for showing stats/settings. I just guessed a height now for the area to make the scrollbar appear.
+				</div>
+			</div>
+		</section>
+
+	</main>
+</body>
+</html>

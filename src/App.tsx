@@ -9,7 +9,7 @@ import SettingsTab from "./components/SettingsTab";
 
 const TABS = [
   { id: "schedule", label: "Schedule" },
-  { id: "profile", label: "Profile & Gear" },
+  { id: "profile", label: "Profile" },
   { id: "settings", label: "Settings" },
 ] as const;
 
@@ -46,32 +46,33 @@ function App() {
   });
 
   return (
-    <div class="flex flex-col h-full bg-base-200 text-base-content">
-      {/* Header */}
-      <header class="flex items-center justify-between px-4 py-3 bg-base-300">
-        <div class="flex items-center gap-3">
-          <span class="text-lg font-bold">Slipgate</span>
-        </div>
-        {/* User info — placeholder until auth */}
-        <div class="flex items-center gap-2">
-          <div class="avatar placeholder">
-            <div class="bg-base-content/10 text-base-content/40 w-7 rounded-full">
-              <span class="text-[10px]">QW</span>
-            </div>
+    <div class="flex flex-col h-full">
+      {/* Header + Tabs — gradient box like gnoffa's design */}
+      <div class="sg-box flex flex-wrap items-center" style={{ "border-radius": "6px 6px 0 0" }}>
+        {/* Title row */}
+        <div class="flex items-center w-full" style={{ height: "40px" }}>
+          <div
+            class="flex items-center flex-1 px-2.5 font-semibold"
+            style={{ color: "var(--sg-text-bright)", "text-shadow": "0 2px 0 var(--sg-header-shadow)" }}
+          >
+            <img src="/img/666.png" alt="" class="w-6 h-6 mr-1.5" />
+            Slipgate
           </div>
-          <span class="text-xs opacity-30">Not logged in</span>
         </div>
-      </header>
 
-      {/* Tab navigation */}
-      <TabNav
-        tabs={[...TABS]}
-        active={activeTab()}
-        onSelect={setActiveTab}
-      />
+        {/* Separator */}
+        <div class="sg-hsep" />
+
+        {/* Tabs */}
+        <TabNav
+          tabs={[...TABS]}
+          active={activeTab()}
+          onSelect={setActiveTab}
+        />
+      </div>
 
       {/* Tab content */}
-      <main class="flex-1 overflow-y-auto p-4">
+      <main class="flex-1 overflow-y-auto sg-profile-content">
         <Switch>
           <Match when={activeTab() === "schedule"}>
             <ScheduleTab />
@@ -91,9 +92,9 @@ function App() {
       </main>
 
       {/* Footer */}
-      <footer class="px-4 py-1.5 bg-base-300 border-t border-base-content/5 text-[10px] opacity-20 text-center">
+      <div class="sg-footer">
         QuakeWorld Desktop Companion
-      </footer>
+      </div>
     </div>
   );
 }

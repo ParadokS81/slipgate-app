@@ -1,46 +1,76 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+/* Geist Sans — variable font */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+  font-style: normal;
+}
+
 /*
  * Slipgate Dark Theme
- * Placeholder OKLCH values — will be replaced by Harmonizer export.
+ * Based on gnoffa's visual design — cool blue-grey palette.
  * Uses DaisyUI 5 theme API with CSS custom properties.
  */
 @plugin "daisyui/theme" {
   name: "slipgate-dark";
   default: true;
 
-  /* Base surfaces */
-  --color-base-100: oklch(20% 0.02 265);
-  --color-base-200: oklch(16% 0.02 265);
-  --color-base-300: oklch(12% 0.02 265);
-  --color-base-content: oklch(90% 0.02 265);
+  /* Base surfaces — matched to gnoffa's palette */
+  --color-base-100: oklch(21.7% 0.011 261);   /* #171a1f — tab/footer bg */
+  --color-base-200: oklch(15.9% 0.009 264);   /* #0b0d11 — article/content bg */
+  --color-base-300: oklch(13.4% 0.002 263);   /* #080808 — deepest bg / stat boxes */
+  --color-base-content: oklch(69.5% 0.014 262); /* #989da6 — normal text */
 
-  /* Primary — indigo */
-  --color-primary: oklch(65% 0.15 265);
-  --color-primary-content: oklch(98% 0.01 265);
+  /* Primary — sky blue (gnoffa's selected tab color) */
+  --color-primary: oklch(76.1% 0.129 235);    /* #4fbef7 */
+  --color-primary-content: oklch(13.4% 0.002 263);
 
   /* Secondary — teal */
   --color-secondary: oklch(65% 0.15 180);
   --color-secondary-content: oklch(98% 0.01 180);
 
-  /* Accent — soft purple (complement to primary, not competing) */
+  /* Accent — soft purple */
   --color-accent: oklch(65% 0.12 300);
   --color-accent-content: oklch(98% 0.01 300);
 
-  /* Neutral */
-  --color-neutral: oklch(25% 0.02 265);
-  --color-neutral-content: oklch(85% 0.02 265);
+  /* Neutral — gradient range */
+  --color-neutral: oklch(30.3% 0.013 253);    /* #2a2f35 — grad dark */
+  --color-neutral-content: oklch(83.6% 0.010 243); /* #c4cacf — header text */
 
   /* Semantic */
-  --color-info: oklch(65% 0.15 240);
+  --color-info: oklch(76.1% 0.129 235);
   --color-success: oklch(65% 0.18 145);
   --color-warning: oklch(75% 0.15 80);
   --color-error: oklch(60% 0.2 25);
 
   /* Rounded corners — compact desktop feel */
-  --radius-btn: 0.375rem;
-  --radius-box: 0.5rem;
+  --radius-btn: 0.25rem;
+  --radius-box: 0.375rem;
+}
+
+/* gnoffa's design tokens — used directly in components */
+:root {
+  --sg-grad-dark: #2a2f35;
+  --sg-grad-light: #393d44;
+  --sg-shadow-top: #48545c;
+  --sg-shadow-top-weak: #48545c3a;
+  --sg-shadow-bottom: #252a30;
+  --sg-stat-border: #33363a;
+  --sg-stat-bg: #080a0d;
+  --sg-section-label: #5c6b75;
+  --sg-text-dim: #989da6;
+  --sg-text-bright: #c4cacf;
+  --sg-header-shadow: #23272f;
+  --sg-tab-selected-shadow: #12151a;
+  --sg-tab-hover-top: #536672;
+  --sg-tab-hover-bottom: #16191f;
+  --sg-tab-hover-text: #a5aab4;
+  --sg-hsep-top: #48545c3a;
+  --sg-hsep-bottom: #252a30;
 }
 
 /* Global styles */
@@ -48,19 +78,182 @@ html, body, #root {
   height: 100%;
   margin: 0;
   overflow: hidden;
+  font-family: "Geist", system-ui, -apple-system, sans-serif;
 }
 
-/* Scrollbar styling for dark theme */
+/* Scrollbar styling — matched to gnoffa's design */
 ::-webkit-scrollbar {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--sg-stat-bg);
 }
 ::-webkit-scrollbar-thumb {
-  background: oklch(40% 0.02 265);
-  border-radius: 3px;
+  background: var(--sg-section-label);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(50% 0.02 265);
+  filter: brightness(1.2);
+}
+
+/* ============================================================
+   Component styles — gnoffa's design translated to CSS classes
+   ============================================================ */
+
+/* Gradient box — used for header, tabs container */
+.sg-box {
+  background: linear-gradient(to bottom, var(--sg-grad-light), var(--sg-grad-dark));
+  box-shadow:
+    inset 0 1px 0 var(--sg-shadow-top),
+    inset 0 -1px 0 var(--sg-shadow-bottom);
+}
+
+/* Horizontal separator */
+.sg-hsep {
+  width: 100%;
+  height: 2px;
+  flex-basis: 100%;
+  flex-shrink: 0;
+  box-shadow:
+    inset 0 -1px 0 var(--sg-hsep-top),
+    inset 0 1px 0 var(--sg-hsep-bottom);
+}
+
+/* Tab bar container */
+.sg-tabs {
+  background-color: var(--sg-tab-selected-shadow);
+  border-radius: 4px;
+  height: 24px;
+  line-height: 24px;
+  display: flex;
+  gap: 1px;
+  box-shadow: 0 0 0 1px var(--sg-tab-selected-shadow);
+}
+
+.sg-tab {
+  width: 96px;
+  color: var(--sg-text-dim);
+  background: linear-gradient(to bottom, var(--sg-grad-light), var(--sg-grad-dark));
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 var(--sg-shadow-top),
+    inset 0 -1px 0 var(--sg-shadow-bottom);
+  transition: color 0.15s, background 0.15s;
+}
+
+.sg-tab:first-child { border-radius: 4px 0 0 4px; }
+.sg-tab:last-child { border-radius: 0 4px 4px 0; }
+
+.sg-tab:hover {
+  background: linear-gradient(to bottom, var(--sg-tab-hover-top), var(--sg-tab-hover-bottom));
+  color: var(--sg-tab-hover-text);
+  box-shadow:
+    inset 0 1px 0 var(--sg-tab-hover-top),
+    inset 0 -1px 0 var(--sg-tab-hover-bottom);
+}
+
+.sg-tab.active {
+  background: var(--sg-tab-selected-shadow);
+  color: var(--color-primary, #4fbef7);
+  box-shadow: inset 0 2px 0 var(--sg-tab-selected-shadow);
+}
+
+.sg-tab.active:hover {
+  background: var(--sg-tab-selected-shadow);
+  color: var(--color-primary, #4fbef7);
+  box-shadow: inset 0 2px 0 var(--sg-tab-selected-shadow);
+}
+
+/* Stat box — dark inset card for spec values */
+.sg-stat {
+  background-color: var(--sg-stat-bg);
+  border-radius: 6px;
+  padding: 12px 16px;
+  box-shadow: inset 0 0 0 1px var(--sg-stat-border);
+}
+
+.sg-stat-label {
+  color: var(--sg-section-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.sg-stat-value {
+  color: var(--sg-text-dim);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Section heading */
+.sg-section-title {
+  color: var(--sg-section-label);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 16px;
+  margin: 12px 0 0 8px;
+}
+
+/* Profile content area */
+.sg-profile-content {
+  background-color: var(--sg-stat-bg);
+  padding: 8px 20px 20px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+/* Footer bar */
+.sg-footer {
+  border-radius: 0 0 6px 6px;
+  height: 25px;
+  background: var(--sg-tab-selected-shadow);
+  box-shadow:
+    inset 0 1px 0 #22262c,
+    inset 0 -1px 0 #12151a;
+  color: var(--sg-text-dim);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 24px;
+  padding: 0 0 1px 8px;
+}
+
+/* Edit overlay for overridable fields */
+.sg-stat-editable {
+  position: relative;
+}
+
+.sg-stat-editable .sg-edit-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  color: var(--sg-section-label);
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.sg-stat-editable:hover .sg-edit-icon {
+  opacity: 1;
+}
+
+.sg-stat-editable:hover .sg-edit-icon:hover {
+  color: var(--sg-text-bright);
+}
+
+/* Custom override badge */
+.sg-custom-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-primary, #4fbef7);
+  opacity: 0.6;
+  margin-left: 6px;
 }
