@@ -15,9 +15,9 @@ export interface AllSpecs {
     vram_mb: number | null;
     driver_version: string | null;
   } | null;
-  ram: { total_gb: number };
+  ram: { total_gb: number; ddr_generation: string | null };
   os: { name: string; version: string; arch: string };
-  display: { refresh_hz: number | null; monitor_name: string | null };
+  display: { refresh_hz: number | null; monitor_name: string | null; manufacturer: string | null };
   audio_devices: AudioDevice[];
   hid_devices: HidDevice[];
 }

@@ -7,13 +7,14 @@ import mousepadsData from "../data/mousepads.json";
 const mice = miceData as MouseEntry[];
 const mousepads = mousepadsData as MousepadEntry[];
 
-function formatRam(gb: number): string {
-  return `${Math.round(gb)} GB`;
+function formatRam(gb: number, ddr: string | null): string {
+  const rounded = Math.round(gb);
+  return ddr ? `${rounded}GB ${ddr}` : `${rounded} GB`;
 }
 
 function formatOs(name: string, version: string): string {
   const ver = version.split("(")[0].trim();
-  if (name === "Windows") return `Win ${ver}`;
+  if (name === "Windows") return `Windows ${ver}`;
   if (ver) return `${name} ${ver}`;
   return name;
 }
@@ -29,7 +30,8 @@ export default function ProfileTab(props: ProfileTabProps) {
   // Auto-detected peripherals
   const detectedMice = () => props.specs?.hid_devices.filter((d) => d.device_type === "mouse") ?? [];
   const detectedKeyboards = () => props.specs?.hid_devices.filter((d) => d.device_type === "keyboard") ?? [];
-  const microphones = () => props.specs?.audio_devices.filter((d) => d.device_type === "input") ?? [];
+  const audioInputs = () => props.specs?.audio_devices.filter((d) => d.device_type === "input") ?? [];
+  const audioOutputs = () => props.specs?.audio_devices.filter((d) => d.device_type === "output") ?? [];
 
   // User gear selections
   const [gear, setGear] = createSignal<GearProfile>({
@@ -53,8 +55,7 @@ export default function ProfileTab(props: ProfileTabProps) {
   const [sensInput, setSensInput] = createSignal("");
   const [yawInput, setYawInput] = createSignal("0.022");
 
-  // cm/360 = 914.4 / (DPI × sensitivity × m_yaw)
-  // Accurate when using raw input (m_raw 1), which most competitive players do
+  // cm/360 = 914.4 / (DPI * sensitivity * m_yaw)
   const cm360 = createMemo(() => {
     const dpi = gear().dpi;
     const sens = gear().sensitivity;
@@ -115,198 +116,233 @@ export default function ProfileTab(props: ProfileTabProps) {
     setGear((g) => ({ ...g, sensitivity: val > 0 ? val : null }));
   }
 
-  function saveYaw() {
-    // Just trigger reactivity — yawInput is already used directly by cm360 memo
-  }
+  // Display formatting
+  const displayLabel = () => {
+    const parts = ["Display"];
+    if (props.monitor && props.monitor.count > 1) parts[0] = `Display 1/${props.monitor.count}`;
+    const mfr = props.specs?.display.manufacturer;
+    const name = props.specs?.display.monitor_name;
+    if (mfr && name) parts.push(`${mfr} ${name}`);
+    else if (name) parts.push(name);
+    return parts.join(" ");
+  };
+
+  const displayValue = () => {
+    const res = props.monitor?.resolution ?? "--";
+    const hz = props.specs?.display.refresh_hz;
+    return hz ? `${res} @ ${hz}Hz` : res;
+  };
 
   return (
-    <div class="space-y-6">
-      {/* System specs */}
-      <section>
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-xs font-semibold uppercase tracking-wider opacity-40">System</h2>
-          <button
-            class="text-xs opacity-30 hover:opacity-60 transition-opacity"
-            onClick={props.onRefresh}
-          >
-            Refresh
-          </button>
-        </div>
-        <Show
-          when={!props.loading}
-          fallback={
-            <div class="grid grid-cols-2 gap-2">
-              <SpecCard label="CPU" value="Detecting..." dim />
-              <SpecCard label="GPU" value="Detecting..." dim />
-              <div class="bg-base-300 rounded-box p-3 flex">
-                <div class="flex-1">
-                  <div class="text-xs opacity-30 mb-1">RAM</div>
-                  <div class="font-mono text-sm opacity-25">--</div>
-                </div>
-                <div class="flex-1">
-                  <div class="text-xs opacity-30 mb-1">OS</div>
-                  <div class="font-mono text-sm opacity-25">--</div>
-                </div>
-              </div>
-              <SpecCard label="Display" value="Detecting..." dim />
+    <div class="grid gap-3" style={{ "grid-template-columns": "repeat(12, 1fr)" }}>
+      {/* === BATTLESTATION === */}
+      <h3 class="sg-section-title" style={{ "grid-column": "span 12" }}>Battlestation</h3>
+
+      <Show
+        when={!props.loading}
+        fallback={
+          <>
+            <div class="sg-stat" style={{ "grid-column": "span 6" }}>
+              <div class="sg-stat-label">CPU</div>
+              <div class="sg-stat-value" style={{ opacity: 0.25 }}>Detecting...</div>
             </div>
-          }
-        >
-          <div class="grid grid-cols-2 gap-2">
-            <SpecCard label="CPU" value={props.specs?.cpu.model} title={props.specs?.cpu.model} />
-            <SpecCard
-              label="GPU"
-              value={props.specs?.gpu?.model ?? "Not detected"}
-              title={props.specs?.gpu?.model}
-            />
-            <div class="bg-base-300 rounded-box p-3 flex">
-              <div class="flex-1">
-                <div class="text-xs opacity-30 mb-1">RAM</div>
-                <div class="font-mono text-sm">
-                  {props.specs ? formatRam(props.specs.ram.total_gb) : "--"}
-                </div>
-              </div>
-              <div class="flex-1">
-                <div class="text-xs opacity-30 mb-1">OS</div>
-                <div class="font-mono text-sm truncate">
-                  {props.specs ? formatOs(props.specs.os.name, props.specs.os.version) : "--"}
-                </div>
-              </div>
+            <div class="sg-stat" style={{ "grid-column": "span 6" }}>
+              <div class="sg-stat-label">GPU</div>
+              <div class="sg-stat-value" style={{ opacity: 0.25 }}>Detecting...</div>
             </div>
-            <div class="bg-base-300 rounded-box p-3">
-              <div class="text-xs opacity-30 mb-1 truncate">
-                {"Display"}
-                {props.monitor && props.monitor.count > 1 ? ` 1/${props.monitor.count}` : ""}
-                {props.specs?.display.monitor_name ? ` ${props.specs.display.monitor_name}` : ""}
-              </div>
-              <div class="font-mono text-sm truncate">
-                {props.monitor?.resolution ?? "--"}
-                {props.specs?.display.refresh_hz ? ` @ ${props.specs.display.refresh_hz}Hz` : ""}
-              </div>
+            <div class="sg-stat" style={{ "grid-column": "span 3" }}>
+              <div class="sg-stat-label">RAM</div>
+              <div class="sg-stat-value" style={{ opacity: 0.25 }}>--</div>
             </div>
+            <div class="sg-stat" style={{ "grid-column": "span 3" }}>
+              <div class="sg-stat-label">OS</div>
+              <div class="sg-stat-value" style={{ opacity: 0.25 }}>--</div>
+            </div>
+            <div class="sg-stat" style={{ "grid-column": "span 6" }}>
+              <div class="sg-stat-label">Display</div>
+              <div class="sg-stat-value" style={{ opacity: 0.25 }}>Detecting...</div>
+            </div>
+          </>
+        }
+      >
+        {/* CPU + GPU — 2 columns */}
+        <div class="sg-stat" style={{ "grid-column": "span 6" }} title={props.specs?.cpu.model}>
+          <div class="sg-stat-label">CPU</div>
+          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+            {props.specs?.cpu.model ?? "--"}
           </div>
-        </Show>
-      </section>
+        </div>
+        <div class="sg-stat" style={{ "grid-column": "span 6" }} title={props.specs?.gpu?.model}>
+          <div class="sg-stat-label">GPU</div>
+          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+            {props.specs?.gpu?.model ?? "Not detected"}
+          </div>
+        </div>
 
-      {/* Peripherals */}
-      <section>
-        <h2 class="text-xs font-semibold uppercase tracking-wider opacity-40 mb-3">
-          Peripherals
-        </h2>
-        <div class={`space-y-1.5 transition-opacity ${props.loading ? "opacity-30" : ""}`}>
-          {/* Mouse */}
-          <GearRow
-            label="Mouse"
-            value={
-              gear().mouse
-                ? `${gear().mouse!.brand} ${gear().mouse!.model}`
-                : detectedMice()[0]?.name ?? null
-            }
-            placeholder="Select mouse"
-            onClick={() => setShowMouseSelector(true)}
-            hint={gear().mouse && detectedMice()[0] ? `detected: ${detectedMice()[0].name}` : undefined}
-          />
+        {/* RAM + OS — half-width each */}
+        <div class="sg-stat" style={{ "grid-column": "span 3" }}>
+          <div class="sg-stat-label">RAM</div>
+          <div class="sg-stat-value">
+            {props.specs ? formatRam(props.specs.ram.total_gb, props.specs.ram.ddr_generation) : "--"}
+          </div>
+        </div>
+        <div class="sg-stat" style={{ "grid-column": "span 3" }}>
+          <div class="sg-stat-label">OS</div>
+          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+            {props.specs ? formatOs(props.specs.os.name, props.specs.os.version) : "--"}
+          </div>
+        </div>
 
-          {/* Mousepad */}
-          <GearRow
-            label="Mousepad"
-            value={gear().mousepad ? `${gear().mousepad!.brand} ${gear().mousepad!.model}` : null}
-            placeholder="Select mousepad"
-            onClick={() => setShowMousepadSelector(true)}
-          />
+        {/* Display — remaining 6 cols */}
+        <div class="sg-stat" style={{ "grid-column": "span 6" }}>
+          <div class="sg-stat-label" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+            {displayLabel()}
+          </div>
+          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+            {displayValue()}
+          </div>
+        </div>
+      </Show>
 
-          {/* Keyboard */}
+      {/* === PERIPHERALS — pyramid: 2 → 3 → 4 === */}
+      <h3 class="sg-section-title" style={{ "grid-column": "span 12" }}>Peripherals</h3>
+
+      {/* Row 1: Audio Out + Audio In (2 boxes) */}
+      <div class="sg-stat" style={{ "grid-column": "span 6" }}>
+        <div class="sg-stat-label">Audio Out</div>
+        <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
           <Show
-            when={!editingKeyboard()}
-            fallback={
-              <div class="flex items-center gap-2 px-3 py-1.5 rounded-box bg-base-300">
-                <span class="text-xs opacity-40 shrink-0">Keyboard</span>
-                <input
-                  type="text"
-                  class="input input-xs flex-1 bg-base-200 font-mono text-xs"
-                  value={keyboardInput()}
-                  onInput={(e) => setKeyboardInput(e.currentTarget.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") saveKeyboard(); if (e.key === "Escape") setEditingKeyboard(false); }}
-                  onBlur={saveKeyboard}
-                  ref={(el) => setTimeout(() => el.focus(), 0)}
-                />
-              </div>
-            }
+            when={audioOutputs()[0]}
+            fallback={<span style={{ opacity: 0.3 }}>--</span>}
           >
-            <Show when={gear().keyboardName || detectedKeyboards().length > 0}>
-              <GearRow
-                label="Keyboard"
-                value={gear().keyboardName || detectedKeyboards()[0]?.name || null}
-                placeholder="Set keyboard"
-                onClick={startEditKeyboard}
-              />
-            </Show>
+            {audioOutputs()[0]?.name}
           </Show>
-
-          {/* Microphone */}
-          <For each={microphones()}>
-            {(device) => (
-              <div class="flex justify-between items-center px-3 py-2 rounded-box bg-base-300 text-sm">
-                <span class="text-xs opacity-40 shrink-0">Microphone</span>
-                <span class="font-mono text-xs truncate ml-4 opacity-60">{device.name}</span>
-              </div>
-            )}
-          </For>
         </div>
-      </section>
-
-      {/* Sensitivity */}
-      <section>
-        <h2 class="text-xs font-semibold uppercase tracking-wider opacity-40 mb-3">
-          Sensitivity
-        </h2>
-        <div class="grid grid-cols-2 gap-2">
-          <div class="bg-base-300 rounded-box p-3">
-            <div class="text-xs opacity-30 mb-1">DPI</div>
-            <input
-              type="number"
-              class="input input-xs w-full bg-base-200 font-mono text-sm"
-              placeholder="e.g. 800"
-              value={dpiInput()}
-              onInput={(e) => setDpiInput(e.currentTarget.value)}
-              onBlur={saveDpi}
-              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-            />
-          </div>
-          <div class="bg-base-300 rounded-box p-3">
-            <div class="text-xs opacity-30 mb-1">Sensitivity</div>
-            <input
-              type="number"
-              step="0.01"
-              class="input input-xs w-full bg-base-200 font-mono text-sm"
-              placeholder="e.g. 3.5"
-              value={sensInput()}
-              onInput={(e) => setSensInput(e.currentTarget.value)}
-              onBlur={saveSens}
-              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-            />
-          </div>
-          <div class="bg-base-300 rounded-box p-3">
-            <div class="text-xs opacity-30 mb-1">m_yaw</div>
-            <input
-              type="number"
-              step="0.001"
-              class="input input-xs w-full bg-base-200 font-mono text-sm"
-              placeholder="0.022"
-              value={yawInput()}
-              onInput={(e) => setYawInput(e.currentTarget.value)}
-              onBlur={saveYaw}
-              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-            />
-          </div>
-          <div class="bg-base-300 rounded-box p-3">
-            <div class="text-xs opacity-30 mb-1">cm/360</div>
-            <div class="font-mono text-sm mt-1">
-              {cm360() !== null ? <span>{cm360()} cm</span> : <span class="opacity-25">--</span>}
-            </div>
-          </div>
+      </div>
+      <div class="sg-stat" style={{ "grid-column": "span 6" }}>
+        <div class="sg-stat-label">Audio In</div>
+        <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+          <Show
+            when={audioInputs()[0]}
+            fallback={<span style={{ opacity: 0.3 }}>--</span>}
+          >
+            {audioInputs()[0]?.name}
+          </Show>
         </div>
-      </section>
+      </div>
+
+      {/* Row 2: Mouse + Mousepad + Keyboard (3 boxes) */}
+      <button
+        class="sg-stat" style={{ "grid-column": "span 4", cursor: "pointer" }}
+        onClick={() => setShowMouseSelector(true)}
+      >
+        <div class="sg-stat-label">Mouse</div>
+        <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+          <Show
+            when={gear().mouse || detectedMice()[0]}
+            fallback={<span style={{ opacity: 0.3 }}>Select mouse</span>}
+          >
+            {gear().mouse
+              ? `${gear().mouse!.brand} ${gear().mouse!.model}`
+              : detectedMice()[0]?.name}
+          </Show>
+        </div>
+      </button>
+      <button
+        class="sg-stat" style={{ "grid-column": "span 4", cursor: "pointer" }}
+        onClick={() => setShowMousepadSelector(true)}
+      >
+        <div class="sg-stat-label">Mousepad</div>
+        <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+          <Show
+            when={gear().mousepad}
+            fallback={<span style={{ opacity: 0.3 }}>Select mousepad</span>}
+          >
+            {`${gear().mousepad!.brand} ${gear().mousepad!.model}`}
+          </Show>
+        </div>
+      </button>
+      <Show
+        when={!editingKeyboard()}
+        fallback={
+          <div class="sg-stat" style={{ "grid-column": "span 4" }}>
+            <div class="sg-stat-label">Keyboard</div>
+            <input
+              type="text"
+              class="w-full bg-transparent border-none outline-none sg-stat-value"
+              style={{ padding: 0, color: "white" }}
+              value={keyboardInput()}
+              onInput={(e) => setKeyboardInput(e.currentTarget.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") saveKeyboard(); if (e.key === "Escape") setEditingKeyboard(false); }}
+              onBlur={saveKeyboard}
+              ref={(el) => setTimeout(() => el.focus(), 0)}
+            />
+          </div>
+        }
+      >
+        <button
+          class="sg-stat" style={{ "grid-column": "span 4", cursor: "pointer", "text-align": "left" }}
+          onClick={startEditKeyboard}
+        >
+          <div class="sg-stat-label">Keyboard</div>
+          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
+            <Show
+              when={gear().keyboardName || detectedKeyboards()[0]}
+              fallback={<span style={{ opacity: 0.3 }}>Set keyboard</span>}
+            >
+              {gear().keyboardName || detectedKeyboards()[0]?.name}
+            </Show>
+          </div>
+        </button>
+      </Show>
+
+      {/* Row 3: DPI + Sensitivity + m_yaw + cm/360 (4 boxes) */}
+      <div class="sg-stat" style={{ "grid-column": "span 3" }}>
+        <div class="sg-stat-label">DPI</div>
+        <input
+          type="number"
+          class="w-full bg-transparent border-none outline-none sg-stat-value"
+          style={{ padding: 0 }}
+          placeholder="e.g. 800"
+          value={dpiInput()}
+          onInput={(e) => setDpiInput(e.currentTarget.value)}
+          onBlur={saveDpi}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        />
+      </div>
+      <div class="sg-stat" style={{ "grid-column": "span 3" }}>
+        <div class="sg-stat-label">Sensitivity</div>
+        <input
+          type="number"
+          step="0.01"
+          class="w-full bg-transparent border-none outline-none sg-stat-value"
+          style={{ padding: 0 }}
+          placeholder="e.g. 3.5"
+          value={sensInput()}
+          onInput={(e) => setSensInput(e.currentTarget.value)}
+          onBlur={saveSens}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        />
+      </div>
+      <div class="sg-stat" style={{ "grid-column": "span 3" }}>
+        <div class="sg-stat-label">m_yaw</div>
+        <input
+          type="number"
+          step="0.001"
+          class="w-full bg-transparent border-none outline-none sg-stat-value"
+          style={{ padding: 0 }}
+          placeholder="0.022"
+          value={yawInput()}
+          onInput={(e) => setYawInput(e.currentTarget.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+        />
+      </div>
+      <div class="sg-stat" style={{ "grid-column": "span 3" }}>
+        <div class="sg-stat-label">cm/360</div>
+        <div class="sg-stat-value">
+          {cm360() !== null ? `${cm360()} cm` : <span style={{ opacity: 0.25 }}>--</span>}
+        </div>
+      </div>
 
       {/* Selector modals */}
       <Show when={showMouseSelector()}>
@@ -325,53 +361,5 @@ export default function ProfileTab(props: ProfileTabProps) {
         />
       </Show>
     </div>
-  );
-}
-
-function SpecCard(props: { label: string; value?: string; title?: string; dim?: boolean }) {
-  return (
-    <div class="bg-base-300 rounded-box p-3">
-      <div class="text-xs opacity-30 mb-1">{props.label}</div>
-      <div
-        class={`font-mono text-sm truncate ${props.dim ? "opacity-25" : ""}`}
-        title={props.title}
-      >
-        {props.value ?? "--"}
-      </div>
-    </div>
-  );
-}
-
-function GearRow(props: {
-  label: string;
-  value: string | null;
-  placeholder: string;
-  onClick: () => void;
-  hint?: string;
-}) {
-  return (
-    <button
-      class="w-full flex justify-between items-center px-3 py-2 rounded-box bg-base-300 text-sm hover:bg-base-content/10 transition-colors cursor-pointer text-left group"
-      onClick={props.onClick}
-    >
-      <div class="flex flex-col min-w-0">
-        <div class="flex items-center gap-2">
-          <span class="text-xs opacity-40 shrink-0">{props.label}</span>
-          <Show when={props.hint}>
-            <span class="text-[10px] opacity-20 truncate">{props.hint}</span>
-          </Show>
-        </div>
-      </div>
-      <div class="flex items-center gap-2 min-w-0">
-        <span
-          class={`font-mono text-xs truncate ${props.value ? "opacity-60" : "opacity-25"}`}
-        >
-          {props.value ?? props.placeholder}
-        </span>
-        <span class="text-xs opacity-20 group-hover:opacity-40 transition-opacity shrink-0">
-          &#9662;
-        </span>
-      </div>
-    </button>
   );
 }

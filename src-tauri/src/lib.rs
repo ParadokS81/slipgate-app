@@ -25,7 +25,7 @@ pub fn run() {
                 .text("quit", "Quit")
                 .build()?;
 
-            // Build the system tray icon
+            // Build the system tray icon (uses default_window_icon from bundle config)
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Slipgate — QuakeWorld Companion")
