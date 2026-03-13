@@ -203,7 +203,7 @@ html, body, #root {
 /* Profile content area */
 .sg-profile-content {
   background-color: var(--sg-stat-bg);
-  padding: 8px 20px 20px;
+  padding: 12px 32px 24px;
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
@@ -223,37 +223,122 @@ html, body, #root {
   padding: 0 0 1px 8px;
 }
 
-/* Edit overlay for overridable fields */
-.sg-stat-editable {
-  position: relative;
+/* Hide number input spinners globally */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
 }
 
-.sg-stat-editable .sg-edit-icon {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  opacity: 0;
+/* ============================================================
+   Card layout — grouped sections with label:value rows
+   ============================================================ */
+
+/* Card container — vertical stack of cards */
+.sg-profile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Card — a grouped section */
+.sg-card {
+  background-color: var(--sg-stat-bg);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--sg-stat-border);
+  overflow: hidden;
+}
+
+/* Card header — icon + title */
+.sg-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
   color: var(--sg-section-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--sg-stat-border);
+}
+
+/* Row — label:value pair (table-like, both columns left-aligned) */
+.sg-row {
+  display: flex;
+  align-items: center;
+  padding: 5px 24px 5px 24px;
+  min-height: 30px;
+}
+
+.sg-row-label {
+  color: var(--sg-section-label);
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+  width: 110px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sg-row-value {
+  color: var(--sg-text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sg-row-value.sg-dim {
+  opacity: 0.3;
+}
+
+/* Clickable row */
+.sg-row-clickable {
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background 0.15s;
 }
 
-.sg-stat-editable:hover .sg-edit-icon {
-  opacity: 1;
+.sg-row-clickable:hover {
+  background: color-mix(in oklch, var(--sg-stat-border) 30%, transparent);
 }
 
-.sg-stat-editable:hover .sg-edit-icon:hover {
-  color: var(--sg-text-bright);
+/* Inline input in a row */
+.sg-row-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--sg-text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
 }
 
-/* Custom override badge */
-.sg-custom-badge {
+.sg-row-input::placeholder {
+  color: var(--sg-section-label);
+  opacity: 0.4;
+}
+
+/* "cfg" badge — shown when value comes from ezQuake config */
+.sg-from-cfg {
   display: inline-block;
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--color-primary, #4fbef7);
-  opacity: 0.6;
-  margin-left: 6px;
+  opacity: 0.5;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in oklch, var(--color-primary, #4fbef7) 30%, transparent);
 }

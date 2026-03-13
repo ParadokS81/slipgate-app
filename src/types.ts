@@ -51,3 +51,27 @@ export interface GearProfile {
   dpi: number | null;
   sensitivity: number | null;
 }
+
+// ezQuake integration types
+export interface EzQuakeInstallation {
+  exe_path: string;
+  config_dir: string;
+  config_files: string[];
+  valid: boolean;
+}
+
+export interface EzQuakeConfig {
+  player_name: string;
+  sensitivity: number;
+  m_yaw: number;
+  m_pitch: number;
+  m_accel: number;
+  fov: number;
+  in_raw: boolean;
+  vid_usedesktopres: boolean;
+  vid_width: number;
+  vid_height: number;
+  vid_displayfrequency: number;
+  cl_maxfps: number;
+  raw_cvars: Record<string, string>;
+}

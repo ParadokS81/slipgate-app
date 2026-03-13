@@ -1,5 +1,6 @@
-import { Show, For, createSignal, createMemo } from "solid-js";
-import type { AllSpecs, MonitorInfo, GearProfile, MouseEntry, MousepadEntry } from "../types";
+import { Show, createSignal, createMemo, createEffect } from "solid-js";
+import { Cpu, Monitor, MemoryStick, Mouse, Keyboard, Headphones, Mic, Crosshair } from "lucide-solid";
+import type { AllSpecs, MonitorInfo, GearProfile, MouseEntry, MousepadEntry, EzQuakeConfig } from "../types";
 import { MouseSelector, MousepadSelector } from "./GearSelector";
 import miceData from "../data/mice.json";
 import mousepadsData from "../data/mousepads.json";
@@ -19,11 +20,24 @@ function formatOs(name: string, version: string): string {
   return name;
 }
 
+/** A single label → value row inside a card */
+function Row(props: { label: string; value?: string | null; dim?: boolean; children?: any }) {
+  return (
+    <div class="sg-row">
+      <span class="sg-row-label">{props.label}</span>
+      <span class="sg-row-value" classList={{ "sg-dim": props.dim || (!props.value && !props.children) }}>
+        {props.children ?? props.value ?? "--"}
+      </span>
+    </div>
+  );
+}
+
 interface ProfileTabProps {
   specs: AllSpecs | null;
   monitor: MonitorInfo | null;
   loading: boolean;
   onRefresh: () => void;
+  ezConfig?: EzQuakeConfig | null;
 }
 
 export default function ProfileTab(props: ProfileTabProps) {
@@ -35,11 +49,7 @@ export default function ProfileTab(props: ProfileTabProps) {
 
   // User gear selections
   const [gear, setGear] = createSignal<GearProfile>({
-    mouse: null,
-    mousepad: null,
-    keyboardName: null,
-    dpi: null,
-    sensitivity: null,
+    mouse: null, mousepad: null, keyboardName: null, dpi: null, sensitivity: null,
   });
 
   // Selector modal state
@@ -54,6 +64,15 @@ export default function ProfileTab(props: ProfileTabProps) {
   const [dpiInput, setDpiInput] = createSignal("");
   const [sensInput, setSensInput] = createSignal("");
   const [yawInput, setYawInput] = createSignal("0.022");
+
+  // Auto-fill from ezQuake config when available
+  createEffect(() => {
+    const cfg = props.ezConfig;
+    if (!cfg) return;
+    if (!sensInput()) setSensInput(String(cfg.sensitivity));
+    if (yawInput() === "0.022" && cfg.m_yaw !== 0.022) setYawInput(String(cfg.m_yaw));
+    if (!gear().sensitivity && cfg.sensitivity) saveSens();
+  });
 
   // cm/360 = 914.4 / (DPI * sensitivity * m_yaw)
   const cm360 = createMemo(() => {
@@ -71,16 +90,14 @@ export default function ProfileTab(props: ProfileTabProps) {
     const detected = detectedMice()[0]?.name;
     if (!detected) return "";
     const lower = detected.toLowerCase();
-    if (lower.includes("zowie")) return "ZOWIE";
-    if (lower.includes("logitech")) return "Logitech";
-    if (lower.includes("razer")) return "Razer";
-    if (lower.includes("steelseries")) return "SteelSeries";
-    if (lower.includes("pulsar")) return "Pulsar";
-    if (lower.includes("endgame")) return "Endgame Gear";
-    if (lower.includes("finalmouse")) return "Finalmouse";
-    if (lower.includes("vaxee")) return "VAXEE";
-    if (lower.includes("lamzu")) return "Lamzu";
-    if (lower.includes("wlmouse")) return "WLMOUSE";
+    const brands: Record<string, string> = {
+      zowie: "ZOWIE", logitech: "Logitech", razer: "Razer", steelseries: "SteelSeries",
+      pulsar: "Pulsar", endgame: "Endgame Gear", finalmouse: "Finalmouse",
+      vaxee: "VAXEE", lamzu: "Lamzu", wlmouse: "WLMOUSE",
+    };
+    for (const [key, val] of Object.entries(brands)) {
+      if (lower.includes(key)) return val;
+    }
     return "";
   });
 
@@ -95,8 +112,7 @@ export default function ProfileTab(props: ProfileTabProps) {
   }
 
   function startEditKeyboard() {
-    const current = gear().keyboardName || detectedKeyboards()[0]?.name || "";
-    setKeyboardInput(current);
+    setKeyboardInput(gear().keyboardName || detectedKeyboards()[0]?.name || "");
     setEditingKeyboard(true);
   }
 
@@ -117,230 +133,202 @@ export default function ProfileTab(props: ProfileTabProps) {
   }
 
   // Display formatting
-  const displayLabel = () => {
-    const parts = ["Display"];
-    if (props.monitor && props.monitor.count > 1) parts[0] = `Display 1/${props.monitor.count}`;
-    const mfr = props.specs?.display.manufacturer;
-    const name = props.specs?.display.monitor_name;
-    if (mfr && name) parts.push(`${mfr} ${name}`);
-    else if (name) parts.push(name);
-    return parts.join(" ");
+  const monitorLabel = () => {
+    const count = props.monitor?.count;
+    return count && count > 1 ? `${count} Monitors` : "Monitor";
   };
 
-  const displayValue = () => {
+  const displayModel = () => {
+    const mfr = props.specs?.display.manufacturer;
+    const name = props.specs?.display.monitor_name;
+    const count = props.monitor?.count;
+    let model = "";
+    if (mfr && name) model = `${mfr} ${name}`;
+    else if (name) model = name;
+    else return null;
+    if (count && count > 1) model += " (Primary)";
+    return model;
+  };
+
+  const displayRes = () => {
     const res = props.monitor?.resolution ?? "--";
     const hz = props.specs?.display.refresh_hz;
     return hz ? `${res} @ ${hz}Hz` : res;
   };
 
+  const mouseDisplayName = () =>
+    gear().mouse ? `${gear().mouse!.brand} ${gear().mouse!.model}` : detectedMice()[0]?.name || null;
+
+  const mousepadDisplayName = () =>
+    gear().mousepad ? `${gear().mousepad!.brand} ${gear().mousepad!.model}` : null;
+
+  const keyboardDisplayName = () =>
+    gear().keyboardName || detectedKeyboards()[0]?.name || null;
+
   return (
-    <div class="grid gap-3" style={{ "grid-template-columns": "repeat(12, 1fr)" }}>
-      {/* === BATTLESTATION === */}
-      <h3 class="sg-section-title" style={{ "grid-column": "span 12" }}>Battlestation</h3>
-
-      <Show
-        when={!props.loading}
-        fallback={
-          <>
-            <div class="sg-stat" style={{ "grid-column": "span 6" }}>
-              <div class="sg-stat-label">CPU</div>
-              <div class="sg-stat-value" style={{ opacity: 0.25 }}>Detecting...</div>
-            </div>
-            <div class="sg-stat" style={{ "grid-column": "span 6" }}>
-              <div class="sg-stat-label">GPU</div>
-              <div class="sg-stat-value" style={{ opacity: 0.25 }}>Detecting...</div>
-            </div>
-            <div class="sg-stat" style={{ "grid-column": "span 3" }}>
-              <div class="sg-stat-label">RAM</div>
-              <div class="sg-stat-value" style={{ opacity: 0.25 }}>--</div>
-            </div>
-            <div class="sg-stat" style={{ "grid-column": "span 3" }}>
-              <div class="sg-stat-label">OS</div>
-              <div class="sg-stat-value" style={{ opacity: 0.25 }}>--</div>
-            </div>
-            <div class="sg-stat" style={{ "grid-column": "span 6" }}>
-              <div class="sg-stat-label">Display</div>
-              <div class="sg-stat-value" style={{ opacity: 0.25 }}>Detecting...</div>
-            </div>
-          </>
-        }
-      >
-        {/* CPU + GPU — 2 columns */}
-        <div class="sg-stat" style={{ "grid-column": "span 6" }} title={props.specs?.cpu.model}>
-          <div class="sg-stat-label">CPU</div>
-          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-            {props.specs?.cpu.model ?? "--"}
-          </div>
+    <div class="sg-profile-cards">
+      {/* === SYSTEM === */}
+      <div class="sg-card">
+        <div class="sg-card-header">
+          <Cpu size={16} />
+          <span>System</span>
         </div>
-        <div class="sg-stat" style={{ "grid-column": "span 6" }} title={props.specs?.gpu?.model}>
-          <div class="sg-stat-label">GPU</div>
-          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-            {props.specs?.gpu?.model ?? "Not detected"}
-          </div>
-        </div>
-
-        {/* RAM + OS — half-width each */}
-        <div class="sg-stat" style={{ "grid-column": "span 3" }}>
-          <div class="sg-stat-label">RAM</div>
-          <div class="sg-stat-value">
-            {props.specs ? formatRam(props.specs.ram.total_gb, props.specs.ram.ddr_generation) : "--"}
-          </div>
-        </div>
-        <div class="sg-stat" style={{ "grid-column": "span 3" }}>
-          <div class="sg-stat-label">OS</div>
-          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-            {props.specs ? formatOs(props.specs.os.name, props.specs.os.version) : "--"}
-          </div>
-        </div>
-
-        {/* Display — remaining 6 cols */}
-        <div class="sg-stat" style={{ "grid-column": "span 6" }}>
-          <div class="sg-stat-label" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-            {displayLabel()}
-          </div>
-          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-            {displayValue()}
-          </div>
-        </div>
-      </Show>
-
-      {/* === PERIPHERALS — pyramid: 2 → 3 → 4 === */}
-      <h3 class="sg-section-title" style={{ "grid-column": "span 12" }}>Peripherals</h3>
-
-      {/* Row 1: Audio Out + Audio In (2 boxes) */}
-      <div class="sg-stat" style={{ "grid-column": "span 6" }}>
-        <div class="sg-stat-label">Audio Out</div>
-        <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-          <Show
-            when={audioOutputs()[0]}
-            fallback={<span style={{ opacity: 0.3 }}>--</span>}
-          >
-            {audioOutputs()[0]?.name}
-          </Show>
-        </div>
-      </div>
-      <div class="sg-stat" style={{ "grid-column": "span 6" }}>
-        <div class="sg-stat-label">Audio In</div>
-        <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-          <Show
-            when={audioInputs()[0]}
-            fallback={<span style={{ opacity: 0.3 }}>--</span>}
-          >
-            {audioInputs()[0]?.name}
-          </Show>
-        </div>
-      </div>
-
-      {/* Row 2: Mouse + Mousepad + Keyboard (3 boxes) */}
-      <button
-        class="sg-stat" style={{ "grid-column": "span 4", cursor: "pointer" }}
-        onClick={() => setShowMouseSelector(true)}
-      >
-        <div class="sg-stat-label">Mouse</div>
-        <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-          <Show
-            when={gear().mouse || detectedMice()[0]}
-            fallback={<span style={{ opacity: 0.3 }}>Select mouse</span>}
-          >
-            {gear().mouse
-              ? `${gear().mouse!.brand} ${gear().mouse!.model}`
-              : detectedMice()[0]?.name}
-          </Show>
-        </div>
-      </button>
-      <button
-        class="sg-stat" style={{ "grid-column": "span 4", cursor: "pointer" }}
-        onClick={() => setShowMousepadSelector(true)}
-      >
-        <div class="sg-stat-label">Mousepad</div>
-        <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-          <Show
-            when={gear().mousepad}
-            fallback={<span style={{ opacity: 0.3 }}>Select mousepad</span>}
-          >
-            {`${gear().mousepad!.brand} ${gear().mousepad!.model}`}
-          </Show>
-        </div>
-      </button>
-      <Show
-        when={!editingKeyboard()}
-        fallback={
-          <div class="sg-stat" style={{ "grid-column": "span 4" }}>
-            <div class="sg-stat-label">Keyboard</div>
-            <input
-              type="text"
-              class="w-full bg-transparent border-none outline-none sg-stat-value"
-              style={{ padding: 0, color: "white" }}
-              value={keyboardInput()}
-              onInput={(e) => setKeyboardInput(e.currentTarget.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") saveKeyboard(); if (e.key === "Escape") setEditingKeyboard(false); }}
-              onBlur={saveKeyboard}
-              ref={(el) => setTimeout(() => el.focus(), 0)}
-            />
-          </div>
-        }
-      >
-        <button
-          class="sg-stat" style={{ "grid-column": "span 4", cursor: "pointer", "text-align": "left" }}
-          onClick={startEditKeyboard}
+        <Show
+          when={!props.loading}
+          fallback={<div class="sg-row"><span class="sg-row-value sg-dim">Detecting hardware...</span></div>}
         >
-          <div class="sg-stat-label">Keyboard</div>
-          <div class="sg-stat-value" style={{ overflow: "hidden", "text-overflow": "ellipsis", "white-space": "nowrap" }}>
-            <Show
-              when={gear().keyboardName || detectedKeyboards()[0]}
-              fallback={<span style={{ opacity: 0.3 }}>Set keyboard</span>}
-            >
-              {gear().keyboardName || detectedKeyboards()[0]?.name}
-            </Show>
-          </div>
-        </button>
-      </Show>
+          <Row label="CPU" value={props.specs?.cpu.model} />
+          <Row label="GPU" value={props.specs?.gpu?.model ?? "Not detected"} />
+          <Row label="RAM" value={props.specs ? formatRam(props.specs.ram.total_gb, props.specs.ram.ddr_generation) : null} />
+          <Row label="OS" value={props.specs ? formatOs(props.specs.os.name, props.specs.os.version) : null} />
+        </Show>
+      </div>
 
-      {/* Row 3: DPI + Sensitivity + m_yaw + cm/360 (4 boxes) */}
-      <div class="sg-stat" style={{ "grid-column": "span 3" }}>
-        <div class="sg-stat-label">DPI</div>
-        <input
-          type="number"
-          class="w-full bg-transparent border-none outline-none sg-stat-value"
-          style={{ padding: 0 }}
-          placeholder="e.g. 800"
-          value={dpiInput()}
-          onInput={(e) => setDpiInput(e.currentTarget.value)}
-          onBlur={saveDpi}
-          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        />
+      {/* === DISPLAY === */}
+      <div class="sg-card">
+        <div class="sg-card-header">
+          <Monitor size={16} />
+          <span>Display</span>
+        </div>
+        <Show when={!props.loading} fallback={<Row label="Monitor" dim />}>
+          <Row label={monitorLabel()} value={displayModel()} />
+          <Row label="Resolution" value={displayRes()} />
+          <Show when={props.ezConfig}>
+            <Row label="In-Game FOV" value={props.ezConfig!.fov.toFixed(1)} />
+            <Row
+              label="In-Game Res"
+              value={props.ezConfig!.vid_width > 0
+                ? `${props.ezConfig!.vid_width}x${props.ezConfig!.vid_height}`
+                : props.monitor?.resolution ?? "Desktop"}
+            />
+          </Show>
+        </Show>
       </div>
-      <div class="sg-stat" style={{ "grid-column": "span 3" }}>
-        <div class="sg-stat-label">Sensitivity</div>
-        <input
-          type="number"
-          step="0.01"
-          class="w-full bg-transparent border-none outline-none sg-stat-value"
-          style={{ padding: 0 }}
-          placeholder="e.g. 3.5"
-          value={sensInput()}
-          onInput={(e) => setSensInput(e.currentTarget.value)}
-          onBlur={saveSens}
-          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        />
+
+      {/* === MOUSE & SENSITIVITY === */}
+      <div class="sg-card">
+        <div class="sg-card-header">
+          <Crosshair size={16} />
+          <span>Mouse & Sensitivity</span>
+        </div>
+
+        {/* Mouse selector row */}
+        <div class="sg-row sg-row-clickable" onClick={() => setShowMouseSelector(true)}>
+          <span class="sg-row-label">Mouse</span>
+          <span class="sg-row-value" classList={{ "sg-dim": !mouseDisplayName() }}>
+            {mouseDisplayName() || "Select mouse..."}
+          </span>
+        </div>
+
+        {/* Mousepad selector row */}
+        <div class="sg-row sg-row-clickable" onClick={() => setShowMousepadSelector(true)}>
+          <span class="sg-row-label">Mousepad</span>
+          <span class="sg-row-value" classList={{ "sg-dim": !mousepadDisplayName() }}>
+            {mousepadDisplayName() || "Select mousepad..."}
+          </span>
+        </div>
+
+        {/* DPI — manual input */}
+        <div class="sg-row">
+          <span class="sg-row-label">DPI</span>
+          <input
+            type="number"
+            class="sg-row-input"
+            placeholder="e.g. 800"
+            value={dpiInput()}
+            onInput={(e) => setDpiInput(e.currentTarget.value)}
+            onBlur={saveDpi}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+          />
+        </div>
+
+        {/* Sensitivity */}
+        <div class="sg-row">
+          <span class="sg-row-label">
+            Sensitivity
+            <Show when={props.ezConfig}><span class="sg-from-cfg">cfg</span></Show>
+          </span>
+          <input
+            type="number"
+            class="sg-row-input"
+            placeholder="e.g. 3.5"
+            value={sensInput()}
+            onInput={(e) => setSensInput(e.currentTarget.value)}
+            onBlur={saveSens}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+          />
+        </div>
+
+        {/* m_yaw */}
+        <div class="sg-row">
+          <span class="sg-row-label">
+            m_yaw
+            <Show when={props.ezConfig}><span class="sg-from-cfg">cfg</span></Show>
+          </span>
+          <input
+            type="number"
+            class="sg-row-input"
+            placeholder="0.022"
+            value={yawInput()}
+            onInput={(e) => setYawInput(e.currentTarget.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+          />
+        </div>
+
+        {/* cm/360 — computed */}
+        <div class="sg-row">
+          <span class="sg-row-label">cm/360</span>
+          <span class="sg-row-value" classList={{ "sg-dim": !cm360() }}>
+            {cm360() ? `${cm360()} cm` : "Set DPI + sens"}
+          </span>
+        </div>
       </div>
-      <div class="sg-stat" style={{ "grid-column": "span 3" }}>
-        <div class="sg-stat-label">m_yaw</div>
-        <input
-          type="number"
-          step="0.001"
-          class="w-full bg-transparent border-none outline-none sg-stat-value"
-          style={{ padding: 0 }}
-          placeholder="0.022"
-          value={yawInput()}
-          onInput={(e) => setYawInput(e.currentTarget.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-        />
-      </div>
-      <div class="sg-stat" style={{ "grid-column": "span 3" }}>
-        <div class="sg-stat-label">cm/360</div>
-        <div class="sg-stat-value">
-          {cm360() !== null ? `${cm360()} cm` : <span style={{ opacity: 0.25 }}>--</span>}
+
+      {/* === OTHER PERIPHERALS === */}
+      <div class="sg-card">
+        <div class="sg-card-header">
+          <Keyboard size={16} />
+          <span>Other Peripherals</span>
+        </div>
+
+        {/* Keyboard */}
+        <Show
+          when={!editingKeyboard()}
+          fallback={
+            <div class="sg-row">
+              <span class="sg-row-label">Keyboard</span>
+              <input
+                type="text"
+                class="sg-row-input"
+                value={keyboardInput()}
+                onInput={(e) => setKeyboardInput(e.currentTarget.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") saveKeyboard(); if (e.key === "Escape") setEditingKeyboard(false); }}
+                onBlur={saveKeyboard}
+                ref={(el) => setTimeout(() => el.focus(), 0)}
+              />
+            </div>
+          }
+        >
+          <div class="sg-row sg-row-clickable" onClick={startEditKeyboard}>
+            <span class="sg-row-label">Keyboard</span>
+            <span class="sg-row-value" classList={{ "sg-dim": !keyboardDisplayName() }}>
+              {keyboardDisplayName() || "Set keyboard..."}
+            </span>
+          </div>
+        </Show>
+
+        {/* Audio */}
+        <div class="sg-row">
+          <span class="sg-row-label">Audio Out</span>
+          <span class="sg-row-value" classList={{ "sg-dim": !audioOutputs()[0] }}>
+            {audioOutputs()[0]?.name ?? "--"}
+          </span>
+        </div>
+        <div class="sg-row">
+          <span class="sg-row-label">Audio In</span>
+          <span class="sg-row-value" classList={{ "sg-dim": !audioInputs()[0] }}>
+            {audioInputs()[0]?.name ?? "--"}
+          </span>
         </div>
       </div>
 

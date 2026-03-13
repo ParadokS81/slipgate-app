@@ -1,15 +1,17 @@
 import { createSignal, Match, onMount, Switch } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { currentMonitor, availableMonitors } from "@tauri-apps/api/window";
-import type { AllSpecs, MonitorInfo } from "./types";
+import type { AllSpecs, MonitorInfo, EzQuakeConfig } from "./types";
 import TabNav from "./components/TabNav";
 import ProfileTab from "./components/ProfileTab";
+import ClientsTab from "./components/ClientsTab";
 import ScheduleTab from "./components/ScheduleTab";
 import SettingsTab from "./components/SettingsTab";
 
 const TABS = [
   { id: "schedule", label: "Schedule" },
   { id: "profile", label: "Profile" },
+  { id: "clients", label: "Clients" },
   { id: "settings", label: "Settings" },
 ] as const;
 
@@ -18,6 +20,7 @@ function App() {
   const [specs, setSpecs] = createSignal<AllSpecs | null>(null);
   const [monitor, setMonitor] = createSignal<MonitorInfo | null>(null);
   const [loading, setLoading] = createSignal(true);
+  const [ezConfig, setEzConfig] = createSignal<EzQuakeConfig | null>(null);
 
   async function loadSpecs() {
     setLoading(true);
@@ -83,7 +86,11 @@ function App() {
               monitor={monitor()}
               loading={loading()}
               onRefresh={loadSpecs}
+              ezConfig={ezConfig()}
             />
+          </Match>
+          <Match when={activeTab() === "clients"}>
+            <ClientsTab onConfigLoaded={setEzConfig} monitor={monitor()} />
           </Match>
           <Match when={activeTab() === "settings"}>
             <SettingsTab />
