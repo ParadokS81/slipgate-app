@@ -231,48 +231,50 @@ export default function ProfileTab(props: ProfileTabProps) {
         {/* DPI — manual input */}
         <div class="sg-row">
           <span class="sg-row-label">DPI</span>
-          <input
-            type="number"
-            class="sg-row-input"
-            placeholder="e.g. 800"
-            value={dpiInput()}
-            onInput={(e) => setDpiInput(e.currentTarget.value)}
-            onBlur={saveDpi}
-            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-          />
+          <div class="sg-input-group">
+            <input
+              type="number"
+              class="sg-row-input"
+              placeholder="e.g. 800"
+              value={dpiInput()}
+              onInput={(e) => setDpiInput(e.currentTarget.value)}
+              onBlur={saveDpi}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+            />
+          </div>
         </div>
 
         {/* Sensitivity */}
         <div class="sg-row">
-          <span class="sg-row-label">
-            Sensitivity
+          <span class="sg-row-label">Sensitivity</span>
+          <div class="sg-input-group">
+            <input
+              type="number"
+              class="sg-row-input"
+              placeholder="e.g. 3.5"
+              value={sensInput()}
+              onInput={(e) => setSensInput(e.currentTarget.value)}
+              onBlur={saveSens}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+            />
             <Show when={props.ezConfig}><span class="sg-from-cfg">cfg</span></Show>
-          </span>
-          <input
-            type="number"
-            class="sg-row-input"
-            placeholder="e.g. 3.5"
-            value={sensInput()}
-            onInput={(e) => setSensInput(e.currentTarget.value)}
-            onBlur={saveSens}
-            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-          />
+          </div>
         </div>
 
         {/* m_yaw */}
         <div class="sg-row">
-          <span class="sg-row-label">
-            m_yaw
+          <span class="sg-row-label">m_yaw</span>
+          <div class="sg-input-group">
+            <input
+              type="number"
+              class="sg-row-input"
+              placeholder="0.022"
+              value={yawInput()}
+              onInput={(e) => setYawInput(e.currentTarget.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+            />
             <Show when={props.ezConfig}><span class="sg-from-cfg">cfg</span></Show>
-          </span>
-          <input
-            type="number"
-            class="sg-row-input"
-            placeholder="0.022"
-            value={yawInput()}
-            onInput={(e) => setYawInput(e.currentTarget.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-          />
+          </div>
         </div>
 
         {/* cm/360 — computed */}

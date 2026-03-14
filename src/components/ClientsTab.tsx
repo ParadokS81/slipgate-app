@@ -1,4 +1,4 @@
-import { Show, For, createSignal, createEffect } from "solid-js";
+import { Show, For, createSignal, createEffect, createMemo } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo } from "../types";
@@ -6,6 +6,7 @@ import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo } from "../types";
 interface ClientsTabProps {
   onConfigLoaded?: (config: EzQuakeConfig) => void;
   monitor?: MonitorInfo | null;
+  refreshHz?: number | null;
 }
 
 export default function ClientsTab(props: ClientsTabProps) {
@@ -134,6 +135,65 @@ export default function ClientsTab(props: ClientsTabProps) {
     const isFromConfig = cfg && cfg.vid_width > 0;
     return isFromConfig ? `${r.w}x${r.h}` : `${r.w}x${r.h} (Desktop)`;
   };
+
+  // Effective refresh rate: vid_displayfrequency from config overrides system Hz
+  // when explicitly set (exclusive fullscreen with custom Hz). Otherwise use
+  // system-detected rate. See docs/EZQUAKE-RESOLUTION.md for source analysis.
+  const effectiveHz = createMemo(() => {
+    const cfgHz = config()?.vid_displayfrequency;
+    if (cfgHz && cfgHz > 0) return { hz: cfgHz, source: "cfg" as const };
+    if (props.refreshHz && props.refreshHz > 0) return { hz: props.refreshHz, source: "system" as const };
+    return null;
+  });
+
+  // FPS recommender: find optimal cl_maxfps values
+  // Priority: (1) must be a multiple of refresh rate, (2) lowest deviation from 77 Hz tick
+  const QW_TICK = 77; // QuakeWorld physics tick rate (1000/13 ≈ 76.923)
+  const [stableFpsInput, setStableFpsInput] = createSignal("");
+
+  interface FpsCandidate {
+    fps: number;
+    refreshMultiple: number;
+    nearest77: number;
+    deviation: number;    // absolute offset from nearest 77 multiple
+    deviationPct: number; // percentage
+  }
+
+  const fpsRecommendations = createMemo((): FpsCandidate[] => {
+    const hzInfo = effectiveHz();
+    const ceiling = parseInt(stableFpsInput());
+    if (!hzInfo || !ceiling || ceiling <= 0) return [];
+    const hz = hzInfo.hz;
+
+    const candidates: FpsCandidate[] = [];
+    // Generate all multiples of refresh rate up to the ceiling
+    for (let mult = 1; mult * hz <= ceiling; mult++) {
+      const fps = mult * hz;
+      const nearest77mult = Math.round(fps / QW_TICK);
+      const nearest77 = nearest77mult * QW_TICK;
+      const deviation = Math.abs(fps - nearest77);
+      const deviationPct = (deviation / fps) * 100;
+      candidates.push({ fps, refreshMultiple: mult, nearest77, deviation, deviationPct });
+    }
+    // Sort by deviation (lowest first), but show highest FPS first when deviation is equal
+    candidates.sort((a, b) => a.deviationPct - b.deviationPct || b.fps - a.fps);
+    return candidates;
+  });
+
+  // Check if current cl_maxfps aligns well
+  const currentFpsAnalysis = createMemo(() => {
+    const cfg = config();
+    const hzInfo = effectiveHz();
+    if (!cfg?.cl_maxfps || !hzInfo) return null;
+    const fps = cfg.cl_maxfps;
+    const hz = hzInfo.hz;
+    const isRefreshAligned = fps % hz === 0;
+    const nearest77mult = Math.round(fps / QW_TICK);
+    const nearest77 = nearest77mult * QW_TICK;
+    const deviation = Math.abs(fps - nearest77);
+    const deviationPct = (deviation / fps) * 100;
+    return { fps, isRefreshAligned, refreshMultiple: isRefreshAligned ? fps / hz : null, deviationPct };
+  });
 
   // FOV recalculator
   const [fovNewWidth, setFovNewWidth] = createSignal("");
@@ -310,6 +370,87 @@ export default function ClientsTab(props: ClientsTabProps) {
             </Show>
           </div>
         </div>
+
+        {/* === FPS RECOMMENDER === */}
+        <h3 class="sg-section-title" style={{ "grid-column": "span 12" }}>FPS Optimizer</h3>
+
+        <div class="sg-stat" style={{ "grid-column": "span 4" }}>
+          <div class="sg-stat-label">Monitor Hz</div>
+          <div class="sg-stat-value">
+            {effectiveHz()
+              ? `${effectiveHz()!.hz} Hz${effectiveHz()!.source === "cfg" ? " (cfg)" : ""}`
+              : "--"}
+          </div>
+        </div>
+        <div class="sg-stat" style={{ "grid-column": "span 4" }}>
+          <div class="sg-stat-label">Current cl_maxfps</div>
+          <div class="sg-stat-value">
+            <Show when={currentFpsAnalysis()} fallback={config()?.cl_maxfps ? String(config()!.cl_maxfps) : "Unlocked"}>
+              {(() => {
+                const a = currentFpsAnalysis()!;
+                const color = a.isRefreshAligned
+                  ? a.deviationPct < 1 ? "#4ade80" : a.deviationPct < 2 ? "#a3e635" : "var(--sg-text-dim)"
+                  : "#f87171";
+                return (
+                  <span>
+                    {a.fps}
+                    <span style={{ color, "font-size": "0.7rem", "margin-left": "6px" }}>
+                      {a.isRefreshAligned
+                        ? `${a.deviationPct.toFixed(2)}% off 77`
+                        : "not aligned to Hz"}
+                    </span>
+                  </span>
+                );
+              })()}
+            </Show>
+          </div>
+        </div>
+        <div class="sg-stat" style={{ "grid-column": "span 4" }}>
+          <div class="sg-stat-label">Stable FPS Ceiling</div>
+          <input
+            type="number"
+            class="w-full bg-transparent border-none outline-none sg-stat-value"
+            style={{ padding: 0 }}
+            placeholder="e.g. 1500"
+            value={stableFpsInput()}
+            onInput={(e) => setStableFpsInput(e.currentTarget.value)}
+          />
+        </div>
+
+        <Show when={fpsRecommendations().length > 0}>
+          <div style={{ "grid-column": "span 12", "font-size": "0.7rem", color: "var(--sg-section-label)", padding: "2px 4px" }}>
+            {`Multiples of ${effectiveHz()?.hz} Hz, ranked by 77 Hz alignment (QW physics tick)`}
+          </div>
+          <For each={fpsRecommendations().slice(0, 5)}>
+            {(c, i) => {
+              const isBest = () => i() === 0;
+              const color = () => c.deviationPct < 0.5 ? "#4ade80" : c.deviationPct < 1.5 ? "#a3e635" : c.deviationPct < 3 ? "var(--sg-text-dim)" : "#f87171";
+              return (
+                <div class="sg-stat" style={{ "grid-column": "span 12", display: "flex", "align-items": "center", gap: "8px" }}>
+                  <span style={{ "font-size": "0.65rem", color: "var(--sg-section-label)", width: "18px", "text-align": "right" }}>
+                    {isBest() ? "\u2605" : ""}
+                  </span>
+                  <span class="sg-stat-value" style={{ width: "60px" }}>{c.fps}</span>
+                  <span style={{ "font-size": "0.7rem", color: "var(--sg-section-label)", width: "70px" }}>
+                    {`${effectiveHz()?.hz}\u00d7${c.refreshMultiple}`}
+                  </span>
+                  <span style={{ "font-size": "0.75rem", color: color(), "min-width": "80px" }}>
+                    {c.deviationPct.toFixed(2)}% off 77
+                  </span>
+                  <span style={{ "font-size": "0.65rem", color: "var(--sg-section-label)" }}>
+                    (nearest: {c.nearest77})
+                  </span>
+                </div>
+              );
+            }}
+          </For>
+        </Show>
+
+        <Show when={!effectiveHz()}>
+          <div style={{ "grid-column": "span 12", "text-align": "center", padding: "0.5rem 0", opacity: 0.3, "font-size": "0.75rem" }}>
+            Monitor refresh rate not detected
+          </div>
+        </Show>
 
         {/* === LAUNCH === */}
         <h3 class="sg-section-title" style={{ "grid-column": "span 12" }}>Launch</h3>

@@ -203,7 +203,7 @@ html, body, #root {
 /* Profile content area */
 .sg-profile-content {
   background-color: var(--sg-stat-bg);
-  padding: 12px 32px 24px;
+  padding: 32px 32px;
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
@@ -241,7 +241,7 @@ input[type="number"] {
 .sg-profile-cards {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
 }
 
 /* Card — a grouped section */
@@ -257,7 +257,7 @@ input[type="number"] {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 24px;
+  padding: 10px 72px;
   color: var(--sg-section-label);
   font-size: 11px;
   font-weight: 600;
@@ -270,8 +270,17 @@ input[type="number"] {
 .sg-row {
   display: flex;
   align-items: center;
-  padding: 5px 24px 5px 24px;
+  padding: 5px 72px;
   min-height: 30px;
+}
+
+/* Vertical breathing room inside cards */
+.sg-card-header + .sg-row {
+  padding-top: 20px;
+}
+
+.sg-card > .sg-row:last-child {
+  padding-bottom: 20px;
 }
 
 .sg-row-label {
@@ -310,18 +319,30 @@ input[type="number"] {
   background: color-mix(in oklch, var(--sg-stat-border) 30%, transparent);
 }
 
+/* Input group — input + optional badge */
+.sg-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Inline input in a row */
 .sg-row-input {
-  background: transparent;
-  border: none;
+  background: color-mix(in oklch, var(--sg-stat-border) 25%, transparent);
+  border: 1px solid var(--sg-stat-border);
+  border-radius: 4px;
   outline: none;
   color: var(--sg-text-dim);
   font-size: 13px;
   font-weight: 500;
   text-align: left;
-  width: 100%;
-  min-width: 0;
-  padding: 0;
+  width: 100px;
+  padding: 4px 8px;
+  transition: border-color 0.15s;
+}
+
+.sg-row-input:focus {
+  border-color: color-mix(in oklch, var(--color-primary) 50%, var(--sg-stat-border));
 }
 
 .sg-row-input::placeholder {

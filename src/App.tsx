@@ -90,7 +90,7 @@ function App() {
             />
           </Match>
           <Match when={activeTab() === "clients"}>
-            <ClientsTab onConfigLoaded={setEzConfig} monitor={monitor()} />
+            <ClientsTab onConfigLoaded={setEzConfig} monitor={monitor()} refreshHz={specs()?.display.refresh_hz ?? null} />
           </Match>
           <Match when={activeTab() === "settings"}>
             <SettingsTab />
