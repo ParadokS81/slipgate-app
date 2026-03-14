@@ -89,12 +89,20 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
+        .run(|app_handle, event| match event {
             // Keep the app running when all windows are hidden
-            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+            tauri::RunEvent::ExitRequested { api, code, .. } => {
                 if code.is_none() {
                     api.prevent_exit();
                 }
             }
+            // After sleep/hibernation, WebView2 can lose its rendering context
+            // and show a white screen. Force a reload to restore the UI.
+            tauri::RunEvent::Resumed => {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.eval("window.location.reload()");
+                }
+            }
+            _ => {}
         });
 }
