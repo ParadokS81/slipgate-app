@@ -35,13 +35,19 @@ fn default_cvars() -> HashMap<&'static str, &'static str> {
     ])
 }
 
-/// Parse an ezQuake config file into a map of cvar → value.
-/// Format: `cvar_name  "value"` or `cvar_name  value`
-/// Lines starting with // are comments. Commands like bind/alias are ignored.
-fn parse_config(content: &str) -> HashMap<String, String> {
+/// Parsed config data — cvars and key bindings.
+struct ParsedConfig {
+    cvars: HashMap<String, String>,
+    bindings: Vec<(String, String)>, // ordered list of (key, command), preserves file order
+}
+
+/// Parse an ezQuake config file into cvars and key bindings.
+fn parse_config(content: &str) -> ParsedConfig {
     let mut cvars = HashMap::new();
+    let mut bindings = Vec::new();
+
     let skip_commands = [
-        "bind", "unbind", "unbindall", "alias", "unaliasall",
+        "unbind", "unbindall", "alias", "unaliasall",
         "exec", "set", "tp_pickup", "tp_took", "tp_point",
         "filter", "mapgroup", "skygroup", "floodprot",
         "hud_recalculate", "sb_sourceunmarkall", "sb_sourcemark",
@@ -52,27 +58,42 @@ fn parse_config(content: &str) -> HashMap<String, String> {
         if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("////") {
             continue;
         }
-        // Skip +/- commands (like -moveup, -attack)
         if trimmed.starts_with('+') || trimmed.starts_with('-') {
             continue;
         }
 
-        // Split into first token and rest
         let mut parts = trimmed.splitn(2, char::is_whitespace);
         let key = match parts.next() {
             Some(k) => k,
             None => continue,
         };
 
-        // Skip known commands that aren't cvars
         let key_lower = key.to_lowercase();
+
+        // Parse bind lines: bind KEY "command"
+        if key_lower == "bind" {
+            if let Some(rest) = parts.next() {
+                let rest = rest.trim();
+                let mut bind_parts = rest.splitn(2, char::is_whitespace);
+                if let (Some(bind_key), Some(bind_cmd)) = (bind_parts.next(), bind_parts.next()) {
+                    let cmd = bind_cmd.trim();
+                    let cmd = if cmd.starts_with('"') && cmd.ends_with('"') && cmd.len() >= 2 {
+                        &cmd[1..cmd.len() - 1]
+                    } else {
+                        cmd
+                    };
+                    bindings.push((bind_key.to_uppercase(), cmd.to_string()));
+                }
+            }
+            continue;
+        }
+
         if skip_commands.iter().any(|&cmd| key_lower == cmd) {
             continue;
         }
 
         if let Some(rest) = parts.next() {
             let value = rest.trim();
-            // Strip surrounding quotes if present
             let value = if value.starts_with('"') && value.ends_with('"') && value.len() >= 2 {
                 &value[1..value.len() - 1]
             } else {
@@ -82,7 +103,7 @@ fn parse_config(content: &str) -> HashMap<String, String> {
         }
     }
 
-    cvars
+    ParsedConfig { cvars, bindings }
 }
 
 // ============================================================
@@ -280,6 +301,16 @@ fn hex_digit(b: u8) -> Option<u8> {
     }
 }
 
+/// Movement key bindings extracted from config.
+#[derive(Serialize, Clone)]
+pub struct MovementKeys {
+    pub forward: String,
+    pub back: String,
+    pub moveleft: String,
+    pub moveright: String,
+    pub jump: String,
+}
+
 /// Parsed ezQuake settings that we care about.
 #[derive(Serialize, Clone)]
 pub struct EzQuakeConfig {
@@ -300,6 +331,7 @@ pub struct EzQuakeConfig {
     pub vid_height: u32,
     pub vid_displayfrequency: u32,
     pub cl_maxfps: u32,
+    pub movement: MovementKeys,
     pub raw_cvars: HashMap<String, String>,
 }
 
@@ -307,7 +339,53 @@ fn get_cvar<'a>(parsed: &'a HashMap<String, String>, defaults: &'a HashMap<&str,
     parsed.get(key).map(|s| s.as_str()).unwrap_or_else(|| defaults.get(key).copied().unwrap_or(""))
 }
 
-fn build_config(parsed: HashMap<String, String>) -> EzQuakeConfig {
+/// Find which key is bound to a given command (e.g. "+forward").
+/// When multiple keys bind the same command, prefer the last one in the file
+/// (ezQuake processes config top-to-bottom, last bind wins).
+fn find_bind(bindings: &[(String, String)], command: &str) -> String {
+    let mut last_match: Option<&str> = None;
+    for (key, cmd) in bindings {
+        if cmd == command || cmd.starts_with(&format!("{};", command)) || cmd.starts_with(&format!("{}; ", command)) {
+            last_match = Some(key);
+        }
+    }
+    match last_match {
+        Some(key) => format_key_name(key),
+        None => "?".to_string(),
+    }
+}
+
+/// Format a key name for display (e.g. "MOUSE2" → "Mouse2", "SPACE" → "Space")
+fn format_key_name(key: &str) -> String {
+    match key {
+        "MOUSE1" => "Mouse1".to_string(),
+        "MOUSE2" => "Mouse2".to_string(),
+        "MOUSE3" => "Mouse3".to_string(),
+        "MOUSE4" => "Mouse4".to_string(),
+        "MOUSE5" => "Mouse5".to_string(),
+        "MWHEELUP" => "MWheelUp".to_string(),
+        "MWHEELDOWN" => "MWheelDown".to_string(),
+        "SPACE" => "Space".to_string(),
+        "CTRL" => "Ctrl".to_string(),
+        "ALT" => "Alt".to_string(),
+        "SHIFT" => "Shift".to_string(),
+        "TAB" => "Tab".to_string(),
+        "ENTER" => "Enter".to_string(),
+        "ESCAPE" => "Esc".to_string(),
+        "CAPSLOCK" => "CapsLock".to_string(),
+        "BACKSPACE" => "Backspace".to_string(),
+        "UPARROW" => "↑".to_string(),
+        "DOWNARROW" => "↓".to_string(),
+        "LEFTARROW" => "←".to_string(),
+        "RIGHTARROW" => "→".to_string(),
+        k if k.len() == 1 => k.to_uppercase(),
+        k => k.to_string(),
+    }
+}
+
+fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
+    let bindings = parsed.bindings;
+    let parsed = parsed.cvars;
     let defaults = default_cvars();
 
     let sensitivity = get_cvar(&parsed, &defaults, "sensitivity").parse::<f64>().unwrap_or(12.0);
@@ -355,6 +433,15 @@ fn build_config(parsed: HashMap<String, String>) -> EzQuakeConfig {
     let topcolor = get_cvar(&parsed, &defaults, "topcolor").parse::<u8>().unwrap_or(0);
     let bottomcolor = get_cvar(&parsed, &defaults, "bottomcolor").parse::<u8>().unwrap_or(0);
 
+    // Extract movement key bindings
+    let movement = MovementKeys {
+        forward: find_bind(&bindings, "+forward"),
+        back: find_bind(&bindings, "+back"),
+        moveleft: find_bind(&bindings, "+moveleft"),
+        moveright: find_bind(&bindings, "+moveright"),
+        jump: find_bind(&bindings, "+jump"),
+    };
+
     EzQuakeConfig {
         player_name,
         player_name_qw,
@@ -373,6 +460,7 @@ fn build_config(parsed: HashMap<String, String>) -> EzQuakeConfig {
         vid_height,
         vid_displayfrequency,
         cl_maxfps,
+        movement,
         raw_cvars: parsed,
     }
 }

@@ -3,6 +3,8 @@ import { Cpu, Monitor, Keyboard, Crosshair, Gamepad2, Eye } from "lucide-solid";
 import type { AllSpecs, MonitorInfo, GearProfile, MouseEntry, MousepadEntry, EzQuakeConfig } from "../types";
 import { MouseSelector, MousepadSelector } from "./GearSelector";
 import WhoBanner from "./WhoBanner";
+import KeyboardLayout from "./KeyboardLayout";
+import MouseLayout from "./MouseLayout";
 import miceData from "../data/mice.json";
 import mousepadsData from "../data/mousepads.json";
 
@@ -201,12 +203,35 @@ export default function ProfileTab(props: ProfileTabProps) {
           HOW — Quake Setup (input → output)
           ================================================================ */}
 
-      {/* Input: movement + sensitivity */}
+      {/* Input: movement keys + sensitivity */}
       <div class="sg-card">
         <div class="sg-card-header">
           <Gamepad2 size={16} />
           <span>Input</span>
         </div>
+        <Show when={props.ezConfig}>
+          <div class="sg-row">
+            <span class="sg-row-label">Movement</span>
+            <div class="movement-keys">
+              <div class="movement-keys-row">
+                <div class="movement-key">{props.ezConfig!.movement.forward}</div>
+              </div>
+              <div class="movement-keys-row">
+                <div class="movement-key">{props.ezConfig!.movement.moveleft}</div>
+                <div class="movement-key">{props.ezConfig!.movement.back}</div>
+                <div class="movement-key">{props.ezConfig!.movement.moveright}</div>
+              </div>
+            </div>
+            <div class="movement-jump">
+              <div class="movement-key movement-key-wide">{props.ezConfig!.movement.jump}</div>
+              <span class="movement-label">jump</span>
+            </div>
+          </div>
+          <div style={{ padding: "8px 24px 12px", display: "flex", "align-items": "flex-start", gap: "16px" }}>
+            <KeyboardLayout movement={props.ezConfig!.movement} />
+            <MouseLayout movement={props.ezConfig!.movement} />
+          </div>
+        </Show>
         <Row label="cm/360" value={cm360() ? `${cm360()} cm` : null} dim={!cm360()}>
           {cm360() ? `${cm360()} cm` : "Set DPI + sens in System Specs"}
         </Row>

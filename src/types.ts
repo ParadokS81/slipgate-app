@@ -66,6 +66,14 @@ export interface QwStyledChar {
   color: "w" | "b" | "g"; // white, brown, gold
 }
 
+export interface MovementKeys {
+  forward: string;
+  back: string;
+  moveleft: string;
+  moveright: string;
+  jump: string;
+}
+
 export interface EzQuakeConfig {
   player_name: string;
   player_name_qw: QwStyledChar[];
@@ -84,5 +92,6 @@ export interface EzQuakeConfig {
   vid_height: number;
   vid_displayfrequency: number;
   cl_maxfps: number;
+  movement: MovementKeys;
   raw_cvars: Record<string, string>;
 }
