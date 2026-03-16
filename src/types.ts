@@ -60,8 +60,19 @@ export interface EzQuakeInstallation {
   valid: boolean;
 }
 
+/** A single styled character in a QW nickname (from Rust QW name expander) */
+export interface QwStyledChar {
+  ch: string;
+  color: "w" | "b" | "g"; // white, brown, gold
+}
+
 export interface EzQuakeConfig {
   player_name: string;
+  player_name_qw: QwStyledChar[];
+  team: string;
+  team_qw: QwStyledChar[];
+  topcolor: number;
+  bottomcolor: number;
   sensitivity: number;
   m_yaw: number;
   m_pitch: number;

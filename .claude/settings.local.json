@@ -8,7 +8,12 @@
     "PreToolUse": [
       {
         "matcher": "Edit|Write",
-        "command": "bash c:/Users/Administrator/projects/slipgate-app/.claude/scripts/branch-guard.sh"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash c:/Users/Administrator/projects/slipgate-app/.claude/scripts/branch-guard.sh"
+          }
+        ]
       }
     ]
   }

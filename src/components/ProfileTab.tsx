@@ -1,7 +1,8 @@
 import { Show, createSignal, createMemo, createEffect } from "solid-js";
-import { Cpu, Monitor, MemoryStick, Mouse, Keyboard, Headphones, Mic, Crosshair } from "lucide-solid";
+import { Cpu, Monitor, Keyboard, Crosshair, Gamepad2, Eye } from "lucide-solid";
 import type { AllSpecs, MonitorInfo, GearProfile, MouseEntry, MousepadEntry, EzQuakeConfig } from "../types";
 import { MouseSelector, MousepadSelector } from "./GearSelector";
+import WhoBanner from "./WhoBanner";
 import miceData from "../data/mice.json";
 import mousepadsData from "../data/mousepads.json";
 
@@ -165,9 +166,91 @@ export default function ProfileTab(props: ProfileTabProps) {
   const keyboardDisplayName = () =>
     gear().keyboardName || detectedKeyboards()[0]?.name || null;
 
+  // HOW section: movement keys from config bindings
+  const movementKeys = () => {
+    const cvars = props.ezConfig?.raw_cvars;
+    if (!cvars) return null;
+    // We'd need to parse bindings — for now show basic info
+    return null;
+  };
+
   return (
     <div class="sg-profile-cards">
-      {/* === SYSTEM === */}
+      {/* ================================================================
+          WHO — Identity Banner (scoreboard style)
+          ================================================================ */}
+      <Show
+        when={props.ezConfig}
+        fallback={
+          <div class="who-banner-placeholder">
+            <div class="who-banner-placeholder-text">
+              Load a client config in the Clients tab to see your QW identity
+            </div>
+          </div>
+        }
+      >
+        <WhoBanner
+          playerNameQw={props.ezConfig!.player_name_qw}
+          teamQw={props.ezConfig!.team_qw}
+          topcolor={props.ezConfig!.topcolor}
+          bottomcolor={props.ezConfig!.bottomcolor}
+        />
+      </Show>
+
+      {/* ================================================================
+          HOW — Quake Setup (input → output)
+          ================================================================ */}
+
+      {/* Input: movement + sensitivity */}
+      <div class="sg-card">
+        <div class="sg-card-header">
+          <Gamepad2 size={16} />
+          <span>Input</span>
+        </div>
+        <Row label="cm/360" value={cm360() ? `${cm360()} cm` : null} dim={!cm360()}>
+          {cm360() ? `${cm360()} cm` : "Set DPI + sens in System Specs"}
+        </Row>
+      </div>
+
+      {/* Output: display + FOV — single consolidated line */}
+      <div class="sg-card">
+        <div class="sg-card-header">
+          <Eye size={16} />
+          <span>Output</span>
+        </div>
+        <Show when={!props.loading} fallback={<Row label="Display" dim />}>
+          <Row label="Display">
+            {(() => {
+              const cfg = props.ezConfig;
+              const res = cfg && cfg.vid_width > 0
+                ? `${cfg.vid_width}x${cfg.vid_height}`
+                : props.monitor?.resolution ?? "--";
+              const hz = props.specs?.display.refresh_hz;
+              const fov = cfg?.fov;
+              let line = res;
+              if (hz) line += ` @ ${hz}Hz`;
+              if (fov) line += ` @ ${fov.toFixed(1)} FOV`;
+              return line;
+            })()}
+          </Row>
+        </Show>
+
+        {/* Screenshot placeholders */}
+        <div class="sg-row">
+          <span class="sg-row-label">Screenshots</span>
+          <div class="who-screenshot-placeholders">
+            <div class="who-screenshot-thumb" title="HUD layout" />
+            <div class="who-screenshot-thumb" title="Textures" />
+            <div class="who-screenshot-thumb" title="Weapon view" />
+          </div>
+        </div>
+      </div>
+
+      {/* ================================================================
+          WHAT — System Specs / Battlestation
+          ================================================================ */}
+
+      {/* System */}
       <div class="sg-card">
         <div class="sg-card-header">
           <Cpu size={16} />
@@ -184,7 +267,7 @@ export default function ProfileTab(props: ProfileTabProps) {
         </Show>
       </div>
 
-      {/* === DISPLAY === */}
+      {/* Display hardware */}
       <div class="sg-card">
         <div class="sg-card-header">
           <Monitor size={16} />
@@ -193,26 +276,16 @@ export default function ProfileTab(props: ProfileTabProps) {
         <Show when={!props.loading} fallback={<Row label="Monitor" dim />}>
           <Row label={monitorLabel()} value={displayModel()} />
           <Row label="Resolution" value={displayRes()} />
-          <Show when={props.ezConfig}>
-            <Row label="In-Game FOV" value={props.ezConfig!.fov.toFixed(1)} />
-            <Row
-              label="In-Game Res"
-              value={props.ezConfig!.vid_width > 0
-                ? `${props.ezConfig!.vid_width}x${props.ezConfig!.vid_height}`
-                : props.monitor?.resolution ?? "Desktop"}
-            />
-          </Show>
         </Show>
       </div>
 
-      {/* === MOUSE & SENSITIVITY === */}
+      {/* Mouse & Sensitivity */}
       <div class="sg-card">
         <div class="sg-card-header">
           <Crosshair size={16} />
           <span>Mouse & Sensitivity</span>
         </div>
 
-        {/* Mouse selector row */}
         <div class="sg-row sg-row-clickable" onClick={() => setShowMouseSelector(true)}>
           <span class="sg-row-label">Mouse</span>
           <span class="sg-row-value" classList={{ "sg-dim": !mouseDisplayName() }}>
@@ -220,7 +293,6 @@ export default function ProfileTab(props: ProfileTabProps) {
           </span>
         </div>
 
-        {/* Mousepad selector row */}
         <div class="sg-row sg-row-clickable" onClick={() => setShowMousepadSelector(true)}>
           <span class="sg-row-label">Mousepad</span>
           <span class="sg-row-value" classList={{ "sg-dim": !mousepadDisplayName() }}>
@@ -228,7 +300,6 @@ export default function ProfileTab(props: ProfileTabProps) {
           </span>
         </div>
 
-        {/* DPI — manual input */}
         <div class="sg-row">
           <span class="sg-row-label">DPI</span>
           <div class="sg-input-group">
@@ -244,7 +315,6 @@ export default function ProfileTab(props: ProfileTabProps) {
           </div>
         </div>
 
-        {/* Sensitivity */}
         <div class="sg-row">
           <span class="sg-row-label">Sensitivity</span>
           <div class="sg-input-group">
@@ -261,7 +331,6 @@ export default function ProfileTab(props: ProfileTabProps) {
           </div>
         </div>
 
-        {/* m_yaw */}
         <div class="sg-row">
           <span class="sg-row-label">m_yaw</span>
           <div class="sg-input-group">
@@ -277,7 +346,6 @@ export default function ProfileTab(props: ProfileTabProps) {
           </div>
         </div>
 
-        {/* cm/360 — computed */}
         <div class="sg-row">
           <span class="sg-row-label">cm/360</span>
           <span class="sg-row-value" classList={{ "sg-dim": !cm360() }}>
@@ -286,14 +354,13 @@ export default function ProfileTab(props: ProfileTabProps) {
         </div>
       </div>
 
-      {/* === OTHER PERIPHERALS === */}
+      {/* Other Peripherals */}
       <div class="sg-card">
         <div class="sg-card-header">
           <Keyboard size={16} />
           <span>Other Peripherals</span>
         </div>
 
-        {/* Keyboard */}
         <Show
           when={!editingKeyboard()}
           fallback={
@@ -319,7 +386,6 @@ export default function ProfileTab(props: ProfileTabProps) {
           </div>
         </Show>
 
-        {/* Audio */}
         <div class="sg-row">
           <span class="sg-row-label">Audio Out</span>
           <span class="sg-row-value" classList={{ "sg-dim": !audioOutputs()[0] }}>

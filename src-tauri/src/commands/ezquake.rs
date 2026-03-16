@@ -26,6 +26,9 @@ fn default_cvars() -> HashMap<&'static str, &'static str> {
         ("vid_conheight", "0"),
         ("cl_maxfps", "0"),
         ("name", "player"),
+        ("team", ""),
+        ("topcolor", "0"),
+        ("bottomcolor", "0"),
         ("in_raw", "1"),
         ("freelook", "1"),
         ("r_mode", "-1"),
@@ -82,10 +85,210 @@ fn parse_config(content: &str) -> HashMap<String, String> {
     cvars
 }
 
+// ============================================================
+// QW name rendering — $x codes, ^x codes, raw bytes
+// ============================================================
+
+/// A single styled character in a QW nickname.
+/// `color` is "w" (white, 0x20-0x7F), "b" (brown, 0x80-0xFF), or "g" (gold, 0x10-0x1B).
+#[derive(Serialize, Clone, Debug)]
+pub struct QwStyledChar {
+    pub ch: String,
+    pub color: String, // "w", "b", "g"
+}
+
+/// Expand `$x` escape code to a byte value.
+/// Based on ezQuake `TP_ParseFunChars()` in teamplay.c.
+fn expand_dollar_code(c: char) -> Option<u8> {
+    match c {
+        '\\' => Some(0x0D), // carriage return
+        ':' => Some(0x0A),  // line feed
+        '[' => Some(0x10),  // gold left bracket
+        ']' => Some(0x11),  // gold right bracket
+        '0' => Some(0x12),  // gold digits
+        '1' => Some(0x13),
+        '2' => Some(0x14),
+        '3' => Some(0x15),
+        '4' => Some(0x16),
+        '5' => Some(0x17),
+        '6' => Some(0x18),
+        '7' => Some(0x19),
+        '8' => Some(0x1A),
+        '9' => Some(0x1B),
+        ',' => Some(0x1C),  // white bullet dot
+        '.' => Some(0x9C),  // brown/red middle dot
+        '<' => Some(0x1D),  // small left bracket
+        '-' => Some(0x1E),  // small dash
+        '>' => Some(0x1F),  // small right bracket
+        '(' => Some(0x80),  // big left bracket (brown)
+        '=' => Some(0x81),  // big equal sign (brown)
+        ')' => Some(0x82),  // big right bracket (brown)
+        'a' => Some(0x83),  // big grey block
+        'W' => Some(0x84),  // white LED
+        'G' => Some(0x86),  // green LED
+        'R' => Some(0x87),  // red LED
+        'Y' => Some(0x88),  // yellow LED
+        'B' => Some(0x89),  // blue LED
+        'b' => Some(0x8B),  // filled red block
+        'c' | 'd' => Some(0x8D), // right-pointing red arrow
+        '$' => Some(0x24),  // literal $
+        '^' => Some(0x5E),  // literal ^
+        _ => None,
+    }
+}
+
+/// Map a QW byte (0-255) to a displayable Unicode character.
+fn qw_byte_to_char(byte: u8) -> char {
+    // Strip high bit to get the base character
+    let base = byte & 0x7F;
+    match base {
+        // Control characters / special glyphs → Unicode approximations
+        0x00 => ' ',        // null → space
+        0x01 => ' ',
+        0x02 => ' ',
+        0x03 => ' ',
+        0x04 => ' ',
+        0x05 => '•',        // bullet
+        0x06 => ' ',
+        0x07 => ' ',
+        0x08 => ' ',
+        0x09 => ' ',
+        0x0A => ' ',        // newline
+        0x0B => ' ',
+        0x0C => ' ',
+        0x0D => ' ',        // carriage return
+        0x0E => '·',        // middle dot
+        0x0F => ' ',
+        0x10 => '[',        // gold left bracket
+        0x11 => ']',        // gold right bracket
+        0x12 => '0',        // gold digits
+        0x13 => '1',
+        0x14 => '2',
+        0x15 => '3',
+        0x16 => '4',
+        0x17 => '5',
+        0x18 => '6',
+        0x19 => '7',
+        0x1A => '8',
+        0x1B => '9',
+        0x1C => '•',        // bullet dot (the one ParadokS uses)
+        0x1D => '‹',        // small left bracket
+        0x1E => '—',        // small dash
+        0x1F => '›',        // small right bracket
+        // Standard printable ASCII range (0x20-0x7E)
+        0x20..=0x7E => base as char,
+        0x7F => ' ',        // DEL
+        _ => ' ',           // shouldn't happen after masking
+    }
+}
+
+/// Determine the color class for a QW byte.
+fn qw_byte_color(byte: u8) -> &'static str {
+    match byte {
+        0x10..=0x1B => "g",         // gold range (brackets + digits)
+        0x90..=0x9B => "g",         // gold range (brown variants still render gold)
+        0x80..=0xFF => "b",         // brown/high-bit range
+        _ => "w",                    // white/normal
+    }
+}
+
+/// Parse a QW name string (from config.cfg) into styled characters.
+/// Handles $x codes, ^x codes, and raw bytes (< 0x80 preserved by UTF-8).
+fn expand_qw_name(raw: &str) -> Vec<QwStyledChar> {
+    let mut result = Vec::new();
+    let bytes = raw.as_bytes();
+    let len = bytes.len();
+    let mut i = 0;
+
+    while i < len {
+        let b = bytes[i];
+
+        if b == b'$' && i + 1 < len {
+            let next = bytes[i + 1];
+            // Check for $xHH (hex notation)
+            if next == b'x' && i + 3 < len {
+                let h1 = bytes[i + 2];
+                let h2 = bytes[i + 3];
+                if let (Some(d1), Some(d2)) = (hex_digit(h1), hex_digit(h2)) {
+                    let byte_val = (d1 << 4) | d2;
+                    // $x00 maps to space (0x20), not null
+                    let byte_val = if byte_val == 0 { 0x20 } else { byte_val };
+                    result.push(QwStyledChar {
+                        ch: qw_byte_to_char(byte_val).to_string(),
+                        color: qw_byte_color(byte_val).to_string(),
+                    });
+                    i += 4;
+                    continue;
+                }
+            }
+            // Check for single-char $x codes
+            if let Some(byte_val) = expand_dollar_code(next as char) {
+                result.push(QwStyledChar {
+                    ch: qw_byte_to_char(byte_val).to_string(),
+                    color: qw_byte_color(byte_val).to_string(),
+                });
+                i += 2;
+                continue;
+            }
+            // Unknown $ code — emit literal $
+            result.push(QwStyledChar { ch: "$".to_string(), color: "w".to_string() });
+            i += 1;
+            continue;
+        }
+
+        if b == b'^' && i + 1 < len {
+            let next = bytes[i + 1];
+            if next != b' ' {
+                // ^x = char OR'd with 128 (brown variant)
+                let byte_val = next | 0x80;
+                result.push(QwStyledChar {
+                    ch: qw_byte_to_char(byte_val).to_string(),
+                    color: qw_byte_color(byte_val).to_string(),
+                });
+                i += 2;
+                continue;
+            }
+        }
+
+        // Raw byte — could be a control char (< 0x20) or normal ASCII
+        // For bytes < 128, they pass through UTF-8 lossy conversion intact
+        if b < 0x20 {
+            // Control character — map through QW table
+            result.push(QwStyledChar {
+                ch: qw_byte_to_char(b).to_string(),
+                color: qw_byte_color(b).to_string(),
+            });
+        } else {
+            // Normal printable ASCII
+            result.push(QwStyledChar {
+                ch: (b as char).to_string(),
+                color: "w".to_string(),
+            });
+        }
+        i += 1;
+    }
+
+    result
+}
+
+fn hex_digit(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
 /// Parsed ezQuake settings that we care about.
 #[derive(Serialize, Clone)]
 pub struct EzQuakeConfig {
     pub player_name: String,
+    pub player_name_qw: Vec<QwStyledChar>,
+    pub team: String,
+    pub team_qw: Vec<QwStyledChar>,
+    pub topcolor: u8,
+    pub bottomcolor: u8,
     pub sensitivity: f64,
     pub m_yaw: f64,
     pub m_pitch: f64,
@@ -146,9 +349,19 @@ fn build_config(parsed: HashMap<String, String>) -> EzQuakeConfig {
         .parse::<u32>().unwrap_or(0);
 
     let player_name = get_cvar(&parsed, &defaults, "name").to_string();
+    let player_name_qw = expand_qw_name(&player_name);
+    let team = get_cvar(&parsed, &defaults, "team").to_string();
+    let team_qw = expand_qw_name(&team);
+    let topcolor = get_cvar(&parsed, &defaults, "topcolor").parse::<u8>().unwrap_or(0);
+    let bottomcolor = get_cvar(&parsed, &defaults, "bottomcolor").parse::<u8>().unwrap_or(0);
 
     EzQuakeConfig {
         player_name,
+        player_name_qw,
+        team,
+        team_qw,
+        topcolor,
+        bottomcolor,
         sensitivity,
         m_yaw,
         m_pitch,

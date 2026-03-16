@@ -2,18 +2,12 @@ import { createSignal, Match, onMount, Switch } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { currentMonitor, availableMonitors } from "@tauri-apps/api/window";
 import type { AllSpecs, MonitorInfo, EzQuakeConfig } from "./types";
-import TabNav from "./components/TabNav";
+import SideNav from "./components/SideNav";
 import ProfileTab from "./components/ProfileTab";
+import ToolsTab from "./components/ToolsTab";
 import ClientsTab from "./components/ClientsTab";
 import ScheduleTab from "./components/ScheduleTab";
 import SettingsTab from "./components/SettingsTab";
-
-const TABS = [
-  { id: "schedule", label: "Schedule" },
-  { id: "profile", label: "Profile" },
-  { id: "clients", label: "Clients" },
-  { id: "settings", label: "Settings" },
-] as const;
 
 function App() {
   const [activeTab, setActiveTab] = createSignal("profile");
@@ -50,53 +44,42 @@ function App() {
 
   return (
     <div class="flex flex-col h-full">
-      {/* Header + Tabs — gradient box like gnoffa's design */}
-      <div class="sg-box flex flex-wrap items-center" style={{ "border-radius": "6px 6px 0 0" }}>
-        {/* Title row */}
-        <div class="flex items-center w-full" style={{ height: "40px" }}>
-          <div
-            class="flex items-center flex-1 px-2.5 font-semibold"
-            style={{ color: "var(--sg-text-bright)", "text-shadow": "0 2px 0 var(--sg-header-shadow)" }}
-          >
-            <img src="/img/666.png" alt="" class="w-6 h-6 mr-1.5" />
-            Slipgate
-          </div>
-        </div>
+      {/* Main layout: sidebar + content */}
+      <div class="flex flex-1 overflow-hidden">
+        {/* Sidebar navigation */}
+        <SideNav active={activeTab()} onSelect={setActiveTab} />
 
-        {/* Separator */}
-        <div class="sg-hsep" />
-
-        {/* Tabs */}
-        <TabNav
-          tabs={[...TABS]}
-          active={activeTab()}
-          onSelect={setActiveTab}
-        />
+        {/* Content area */}
+        <main class="flex-1 overflow-y-auto sg-profile-content">
+          <Switch>
+            <Match when={activeTab() === "schedule"}>
+              <ScheduleTab />
+            </Match>
+            <Match when={activeTab() === "profile"}>
+              <ProfileTab
+                specs={specs()}
+                monitor={monitor()}
+                loading={loading()}
+                onRefresh={loadSpecs}
+                ezConfig={ezConfig()}
+              />
+            </Match>
+            <Match when={activeTab() === "tools"}>
+              <ToolsTab
+                ezConfig={ezConfig()}
+                monitor={monitor()}
+                refreshHz={specs()?.display.refresh_hz ?? null}
+              />
+            </Match>
+            <Match when={activeTab() === "clients"}>
+              <ClientsTab onConfigLoaded={setEzConfig} monitor={monitor()} />
+            </Match>
+            <Match when={activeTab() === "settings"}>
+              <SettingsTab />
+            </Match>
+          </Switch>
+        </main>
       </div>
-
-      {/* Tab content */}
-      <main class="flex-1 overflow-y-auto sg-profile-content">
-        <Switch>
-          <Match when={activeTab() === "schedule"}>
-            <ScheduleTab />
-          </Match>
-          <Match when={activeTab() === "profile"}>
-            <ProfileTab
-              specs={specs()}
-              monitor={monitor()}
-              loading={loading()}
-              onRefresh={loadSpecs}
-              ezConfig={ezConfig()}
-            />
-          </Match>
-          <Match when={activeTab() === "clients"}>
-            <ClientsTab onConfigLoaded={setEzConfig} monitor={monitor()} refreshHz={specs()?.display.refresh_hz ?? null} />
-          </Match>
-          <Match when={activeTab() === "settings"}>
-            <SettingsTab />
-          </Match>
-        </Switch>
-      </main>
 
       {/* Footer */}
       <div class="sg-footer">
