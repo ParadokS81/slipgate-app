@@ -589,7 +589,6 @@ input[type="number"] {
 
 .sg-keyboard-container {
   width: 100%;
-  max-width: 400px;
 }
 
 .sg-keyboard-container svg {
@@ -620,7 +619,7 @@ input[type="number"] {
 /* Key labels */
 .sg-kb-label {
   fill: var(--sg-text-dim);
-  font-size: 11px;
+  font-size: 10px;
   font-family: "Geist", system-ui, sans-serif;
   font-weight: 500;
   text-anchor: middle;

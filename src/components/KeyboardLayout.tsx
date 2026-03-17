@@ -1,87 +1,110 @@
 import { Show, createMemo } from "solid-js";
 import type { MovementKeys } from "../types";
 
-/* ─── US QWERTY layout data ─────────────────────────────────────────────── */
+/* ─── US QWERTY 75% layout data ───────────────────────────────────────── */
 
 interface KeyDef {
-  id: string;    // matches ezQuake key name (uppercase letters, "Space", "Ctrl", etc.)
+  id: string;    // matches ezQuake key name
   label: string; // display label on keycap
   x: number;     // x position in keyboard units (1u = standard key width)
   w: number;     // width in keyboard units
-  row: number;   // row index (0 = number row … 4 = space bar row)
+  row: number;   // row index (0 = F-row … 5 = space bar row)
 }
 
+// Vertical gaps (in row-height fractions)
+const FROW_GAP = 0.6;   // gap between F-row and number row
+const ARROW_GAP = 0.3;  // horizontal gap before arrow cluster
+
 const LAYOUT: KeyDef[] = [
-  // Row 0 — Number row
-  { id: "`", label: "`", x: 0, w: 1, row: 0 },
-  { id: "1", label: "1", x: 1, w: 1, row: 0 },
-  { id: "2", label: "2", x: 2, w: 1, row: 0 },
-  { id: "3", label: "3", x: 3, w: 1, row: 0 },
-  { id: "4", label: "4", x: 4, w: 1, row: 0 },
-  { id: "5", label: "5", x: 5, w: 1, row: 0 },
-  { id: "6", label: "6", x: 6, w: 1, row: 0 },
-  { id: "7", label: "7", x: 7, w: 1, row: 0 },
-  { id: "8", label: "8", x: 8, w: 1, row: 0 },
-  { id: "9", label: "9", x: 9, w: 1, row: 0 },
-  { id: "0", label: "0", x: 10, w: 1, row: 0 },
-  { id: "-", label: "-", x: 11, w: 1, row: 0 },
-  { id: "=", label: "=", x: 12, w: 1, row: 0 },
-  { id: "Backspace", label: "⌫", x: 13, w: 2, row: 0 },
+  // Row 0 — Function row (y = 0)
+  { id: "Escape", label: "Esc", x: 0, w: 1, row: 0 },
+  { id: "F1", label: "F1", x: 1.25, w: 1, row: 0 },
+  { id: "F2", label: "F2", x: 2.25, w: 1, row: 0 },
+  { id: "F3", label: "F3", x: 3.25, w: 1, row: 0 },
+  { id: "F4", label: "F4", x: 4.25, w: 1, row: 0 },
+  { id: "F5", label: "F5", x: 5.5, w: 1, row: 0 },
+  { id: "F6", label: "F6", x: 6.5, w: 1, row: 0 },
+  { id: "F7", label: "F7", x: 7.5, w: 1, row: 0 },
+  { id: "F8", label: "F8", x: 8.5, w: 1, row: 0 },
+  { id: "F9", label: "F9", x: 9.75, w: 1, row: 0 },
+  { id: "F10", label: "F10", x: 10.75, w: 1, row: 0 },
+  { id: "F11", label: "F11", x: 11.75, w: 1, row: 0 },
+  { id: "F12", label: "F12", x: 12.75, w: 1, row: 0 },
+  { id: "Delete", label: "Del", x: 14, w: 1, row: 0 },
 
-  // Row 1 — Top alpha
-  { id: "Tab", label: "Tab", x: 0, w: 1.5, row: 1 },
-  { id: "Q", label: "Q", x: 1.5, w: 1, row: 1 },
-  { id: "W", label: "W", x: 2.5, w: 1, row: 1 },
-  { id: "E", label: "E", x: 3.5, w: 1, row: 1 },
-  { id: "R", label: "R", x: 4.5, w: 1, row: 1 },
-  { id: "T", label: "T", x: 5.5, w: 1, row: 1 },
-  { id: "Y", label: "Y", x: 6.5, w: 1, row: 1 },
-  { id: "U", label: "U", x: 7.5, w: 1, row: 1 },
-  { id: "I", label: "I", x: 8.5, w: 1, row: 1 },
-  { id: "O", label: "O", x: 9.5, w: 1, row: 1 },
-  { id: "P", label: "P", x: 10.5, w: 1, row: 1 },
-  { id: "[", label: "[", x: 11.5, w: 1, row: 1 },
-  { id: "]", label: "]", x: 12.5, w: 1, row: 1 },
-  { id: "\\", label: "\\", x: 13.5, w: 1.5, row: 1 },
+  // Row 1 — Number row (y offset by FROW_GAP)
+  { id: "`", label: "`", x: 0, w: 1, row: 1 },
+  { id: "1", label: "1", x: 1, w: 1, row: 1 },
+  { id: "2", label: "2", x: 2, w: 1, row: 1 },
+  { id: "3", label: "3", x: 3, w: 1, row: 1 },
+  { id: "4", label: "4", x: 4, w: 1, row: 1 },
+  { id: "5", label: "5", x: 5, w: 1, row: 1 },
+  { id: "6", label: "6", x: 6, w: 1, row: 1 },
+  { id: "7", label: "7", x: 7, w: 1, row: 1 },
+  { id: "8", label: "8", x: 8, w: 1, row: 1 },
+  { id: "9", label: "9", x: 9, w: 1, row: 1 },
+  { id: "0", label: "0", x: 10, w: 1, row: 1 },
+  { id: "-", label: "-", x: 11, w: 1, row: 1 },
+  { id: "=", label: "=", x: 12, w: 1, row: 1 },
+  { id: "Backspace", label: "⌫", x: 13, w: 2, row: 1 },
 
-  // Row 2 — Home row
-  { id: "CapsLock", label: "Caps", x: 0, w: 1.75, row: 2 },
-  { id: "A", label: "A", x: 1.75, w: 1, row: 2 },
-  { id: "S", label: "S", x: 2.75, w: 1, row: 2 },
-  { id: "D", label: "D", x: 3.75, w: 1, row: 2 },
-  { id: "F", label: "F", x: 4.75, w: 1, row: 2 },
-  { id: "G", label: "G", x: 5.75, w: 1, row: 2 },
-  { id: "H", label: "H", x: 6.75, w: 1, row: 2 },
-  { id: "J", label: "J", x: 7.75, w: 1, row: 2 },
-  { id: "K", label: "K", x: 8.75, w: 1, row: 2 },
-  { id: "L", label: "L", x: 9.75, w: 1, row: 2 },
-  { id: ";", label: ";", x: 10.75, w: 1, row: 2 },
-  { id: "'", label: "'", x: 11.75, w: 1, row: 2 },
-  { id: "Enter", label: "↵", x: 12.75, w: 2.25, row: 2 },
+  // Row 2 — Top alpha
+  { id: "Tab", label: "Tab", x: 0, w: 1.5, row: 2 },
+  { id: "Q", label: "Q", x: 1.5, w: 1, row: 2 },
+  { id: "W", label: "W", x: 2.5, w: 1, row: 2 },
+  { id: "E", label: "E", x: 3.5, w: 1, row: 2 },
+  { id: "R", label: "R", x: 4.5, w: 1, row: 2 },
+  { id: "T", label: "T", x: 5.5, w: 1, row: 2 },
+  { id: "Y", label: "Y", x: 6.5, w: 1, row: 2 },
+  { id: "U", label: "U", x: 7.5, w: 1, row: 2 },
+  { id: "I", label: "I", x: 8.5, w: 1, row: 2 },
+  { id: "O", label: "O", x: 9.5, w: 1, row: 2 },
+  { id: "P", label: "P", x: 10.5, w: 1, row: 2 },
+  { id: "[", label: "[", x: 11.5, w: 1, row: 2 },
+  { id: "]", label: "]", x: 12.5, w: 1, row: 2 },
+  { id: "\\", label: "\\", x: 13.5, w: 1.5, row: 2 },
 
-  // Row 3 — Bottom alpha
-  { id: "Shift", label: "Shift", x: 0, w: 2.25, row: 3 },
-  { id: "Z", label: "Z", x: 2.25, w: 1, row: 3 },
-  { id: "X", label: "X", x: 3.25, w: 1, row: 3 },
-  { id: "C", label: "C", x: 4.25, w: 1, row: 3 },
-  { id: "V", label: "V", x: 5.25, w: 1, row: 3 },
-  { id: "B", label: "B", x: 6.25, w: 1, row: 3 },
-  { id: "N", label: "N", x: 7.25, w: 1, row: 3 },
-  { id: "M", label: "M", x: 8.25, w: 1, row: 3 },
-  { id: ",", label: ",", x: 9.25, w: 1, row: 3 },
-  { id: ".", label: ".", x: 10.25, w: 1, row: 3 },
-  { id: "/", label: "/", x: 11.25, w: 1, row: 3 },
-  { id: "RShift", label: "Shift", x: 12.25, w: 2.75, row: 3 },
+  // Row 3 — Home row
+  { id: "CapsLock", label: "Caps", x: 0, w: 1.75, row: 3 },
+  { id: "A", label: "A", x: 1.75, w: 1, row: 3 },
+  { id: "S", label: "S", x: 2.75, w: 1, row: 3 },
+  { id: "D", label: "D", x: 3.75, w: 1, row: 3 },
+  { id: "F", label: "F", x: 4.75, w: 1, row: 3 },
+  { id: "G", label: "G", x: 5.75, w: 1, row: 3 },
+  { id: "H", label: "H", x: 6.75, w: 1, row: 3 },
+  { id: "J", label: "J", x: 7.75, w: 1, row: 3 },
+  { id: "K", label: "K", x: 8.75, w: 1, row: 3 },
+  { id: "L", label: "L", x: 9.75, w: 1, row: 3 },
+  { id: ";", label: ";", x: 10.75, w: 1, row: 3 },
+  { id: "'", label: "'", x: 11.75, w: 1, row: 3 },
+  { id: "Enter", label: "↵", x: 12.75, w: 2.25, row: 3 },
 
-  // Row 4 — Modifiers + Space
-  { id: "Ctrl", label: "Ctrl", x: 0, w: 1.25, row: 4 },
-  { id: "Win", label: "Win", x: 1.25, w: 1.25, row: 4 },
-  { id: "Alt", label: "Alt", x: 2.5, w: 1.25, row: 4 },
-  { id: "Space", label: "", x: 3.75, w: 6.25, row: 4 },
-  { id: "RAlt", label: "Alt", x: 10, w: 1.25, row: 4 },
-  { id: "RWin", label: "Win", x: 11.25, w: 1.25, row: 4 },
-  { id: "Menu", label: "Fn", x: 12.5, w: 1.25, row: 4 },
-  { id: "RCtrl", label: "Ctrl", x: 13.75, w: 1.25, row: 4 },
+  // Row 4 — Bottom alpha + Up arrow
+  { id: "Shift", label: "Shift", x: 0, w: 2.25, row: 4 },
+  { id: "Z", label: "Z", x: 2.25, w: 1, row: 4 },
+  { id: "X", label: "X", x: 3.25, w: 1, row: 4 },
+  { id: "C", label: "C", x: 4.25, w: 1, row: 4 },
+  { id: "V", label: "V", x: 5.25, w: 1, row: 4 },
+  { id: "B", label: "B", x: 6.25, w: 1, row: 4 },
+  { id: "N", label: "N", x: 7.25, w: 1, row: 4 },
+  { id: "M", label: "M", x: 8.25, w: 1, row: 4 },
+  { id: ",", label: ",", x: 9.25, w: 1, row: 4 },
+  { id: ".", label: ".", x: 10.25, w: 1, row: 4 },
+  { id: "/", label: "/", x: 11.25, w: 1, row: 4 },
+  { id: "RShift", label: "Shift", x: 12.25, w: 1.75, row: 4 },
+  { id: "UpArrow", label: "↑", x: 14.3, w: 1, row: 4 },
+
+  // Row 5 — Modifiers + Space + Arrow keys
+  { id: "Ctrl", label: "Ctrl", x: 0, w: 1.25, row: 5 },
+  { id: "Win", label: "Win", x: 1.25, w: 1.25, row: 5 },
+  { id: "Alt", label: "Alt", x: 2.5, w: 1.25, row: 5 },
+  { id: "Space", label: "", x: 3.75, w: 6.25, row: 5 },
+  { id: "RAlt", label: "Alt", x: 10, w: 1, row: 5 },
+  { id: "RWin", label: "Win", x: 11, w: 1, row: 5 },
+  { id: "RCtrl", label: "Ctrl", x: 12, w: 1, row: 5 },
+  { id: "LeftArrow", label: "←", x: 13.3, w: 1, row: 5 },
+  { id: "DownArrow", label: "↓", x: 14.3, w: 1, row: 5 },
+  { id: "RightArrow", label: "→", x: 15.3, w: 1, row: 5 },
 ];
 
 // Fast lookup by ID
@@ -97,6 +120,17 @@ function toLayoutId(key: string): string | null {
     Space: "Space", Tab: "Tab", CapsLock: "CapsLock",
     Shift: "Shift", Ctrl: "Ctrl", Alt: "Alt",
     Enter: "Enter", Backspace: "Backspace",
+    Escape: "Escape", Esc: "Escape",
+    // Arrow keys — various ezQuake names
+    UpArrow: "UpArrow", DownArrow: "DownArrow",
+    LeftArrow: "LeftArrow", RightArrow: "RightArrow",
+    // Right-side modifiers
+    RShift: "RShift", RCtrl: "RCtrl", RAlt: "RAlt", RWin: "RWin",
+    // F-keys
+    F1: "F1", F2: "F2", F3: "F3", F4: "F4",
+    F5: "F5", F6: "F6", F7: "F7", F8: "F8",
+    F9: "F9", F10: "F10", F11: "F11", F12: "F12",
+    Delete: "Delete", Del: "Delete",
   };
   if (key in map) return map[key];
 
@@ -114,10 +148,16 @@ function toLayoutId(key: string): string | null {
 const KU = 40;          // 1 keyboard unit in SVG coordinates
 const PAD = 2;          // padding inside each key cell
 const ROW_H = 40;       // row height in SVG coordinates
-const NUM_ROWS = 5;
-const TOTAL_H = NUM_ROWS * ROW_H;
-const VIEW_W_U = 8;     // viewport width in keyboard units
-const TOTAL_W_U = 15;   // full keyboard width in keyboard units
+const NUM_ROWS = 6;
+const GAP_PX = FROW_GAP * ROW_H;  // F-row gap in pixels
+const TOTAL_H = NUM_ROWS * ROW_H + GAP_PX;
+const TOTAL_W_U = 16.3; // full 75% keyboard width (with arrow gap)
+
+/** Convert row index to Y pixel position, accounting for F-row gap */
+function rowY(row: number): number {
+  // Rows 1-5 are shifted down by the F-row gap
+  return row * ROW_H + (row >= 1 ? GAP_PX : 0);
+}
 
 /* ─── Component ─────────────────────────────────────────────────────────── */
 
@@ -138,32 +178,11 @@ export default function KeyboardLayout(props: KeyboardLayoutProps) {
     return { moveIds, jumpId };
   });
 
-  // Compute SVG viewBox — zoomed into the cluster around movement keys
+  // Full keyboard viewBox — show entire layout
   const viewBox = createMemo(() => {
     const { moveIds, jumpId } = resolved();
-
-    // Centroid source: prefer movement keys, fall back to jump only
-    const centroidIds = moveIds.size > 0
-      ? moveIds
-      : jumpId ? new Set([jumpId]) : new Set<string>();
-
-    if (centroidIds.size === 0) return null; // nothing on keyboard
-
-    // Average x-center of the relevant keys
-    let sumX = 0, count = 0;
-    for (const id of centroidIds) {
-      const k = KEY_BY_ID.get(id);
-      if (k) { sumX += k.x + k.w / 2; count++; }
-    }
-    if (count === 0) return null;
-
-    const centroidX = sumX / count;
-
-    // Center the viewport on the cluster, clamp to layout bounds
-    let xMin = centroidX - VIEW_W_U / 2;
-    xMin = Math.max(0, Math.min(xMin, TOTAL_W_U - VIEW_W_U));
-
-    return `${xMin * KU} 0 ${VIEW_W_U * KU} ${TOTAL_H}`;
+    if (moveIds.size === 0 && !jumpId) return null;
+    return `0 0 ${TOTAL_W_U * KU} ${TOTAL_H}`;
   });
 
   const keyClass = (id: string) => {
@@ -181,7 +200,7 @@ export default function KeyboardLayout(props: KeyboardLayoutProps) {
             <g>
               <rect
                 x={k.x * KU + PAD}
-                y={k.row * ROW_H + PAD}
+                y={rowY(k.row) + PAD}
                 width={k.w * KU - PAD * 2}
                 height={ROW_H - PAD * 2}
                 rx={4}
@@ -189,7 +208,7 @@ export default function KeyboardLayout(props: KeyboardLayoutProps) {
               />
               <text
                 x={k.x * KU + (k.w * KU) / 2}
-                y={k.row * ROW_H + ROW_H / 2 + 4}
+                y={rowY(k.row) + ROW_H / 2 + 4}
                 class={`sg-kb-label${resolved().moveIds.has(k.id) ? " sg-kb-label-move" : k.id === resolved().jumpId ? " sg-kb-label-jump" : ""}`}
               >
                 {k.label}
