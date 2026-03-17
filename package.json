@@ -13,8 +13,13 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-store": "^2.4.2",
     "daisyui": "^5.5.1-beta.2",
+    "firebase": "^12.10.0",
+    "lucide-solid": "^0.577.0",
+    "simple-keyboard-layouts": "^3.4.179",
     "solid-js": "^1.9.3",
     "tailwindcss": "^4.2.1"
   },

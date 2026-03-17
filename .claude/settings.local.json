@@ -1,14 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "mcp__context7__resolve-library-uri"
+      "mcp__context7__resolve-library-uri",
+      "Bash(export PULSE_SERVER=unix:/mnt/wslg/PulseServer)",
+      "Bash(pactl info:*)",
+      "Bash(dpkg -l)"
     ]
   },
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Edit|Write",
-        "command": "bash c:/Users/Administrator/projects/slipgate-app/.claude/scripts/branch-guard.sh"
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash c:/Users/Administrator/projects/slipgate-app/.claude/scripts/branch-guard.sh"
+          }
+        ]
       }
     ]
   }

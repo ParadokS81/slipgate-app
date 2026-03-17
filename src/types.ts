@@ -51,3 +51,48 @@ export interface GearProfile {
   dpi: number | null;
   sensitivity: number | null;
 }
+
+// ezQuake integration types
+export interface EzQuakeInstallation {
+  exe_path: string;
+  config_dir: string;
+  config_files: string[];
+  valid: boolean;
+  version: string | null;  // "3.6.6.7947" from PE FileVersionRaw
+}
+
+/** A single styled character in a QW nickname (from Rust QW name expander) */
+export interface QwStyledChar {
+  ch: string;
+  color: "w" | "b" | "g"; // white, brown, gold
+}
+
+export interface MovementKeys {
+  forward: string;
+  back: string;
+  moveleft: string;
+  moveright: string;
+  jump: string;
+}
+
+export interface EzQuakeConfig {
+  player_name: string;
+  player_name_qw: QwStyledChar[];
+  team: string;
+  team_qw: QwStyledChar[];
+  topcolor: number;
+  bottomcolor: number;
+  sensitivity: number;
+  m_yaw: number;
+  m_pitch: number;
+  m_accel: number;
+  fov: number;
+  in_raw: boolean;
+  vid_usedesktopres: boolean;
+  vid_width: number;
+  vid_height: number;
+  vid_displayfrequency: number;
+  cl_maxfps: number;
+  movement: MovementKeys;
+  raw_cvars: Record<string, string>;
+}

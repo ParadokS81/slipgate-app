@@ -100,6 +100,69 @@ html, body, #root {
    Component styles — gnoffa's design translated to CSS classes
    ============================================================ */
 
+/* Sidebar navigation */
+.sg-sidebar {
+  width: 64px;
+  background: var(--sg-tab-selected-shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 0;
+  gap: 4px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--sg-stat-border);
+}
+
+.sg-sidebar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  width: 56px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  color: var(--sg-text-dim);
+  background: transparent;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.sg-sidebar-item:hover {
+  color: var(--sg-tab-hover-text);
+  background: color-mix(in oklch, var(--sg-stat-border) 40%, transparent);
+}
+
+.sg-sidebar-item.active {
+  color: var(--color-primary);
+  background: color-mix(in oklch, var(--color-primary) 10%, transparent);
+}
+
+/* Launch buttons */
+.sg-launch-btn {
+  background: color-mix(in oklch, var(--sg-stat-border) 25%, transparent);
+  border: 1px solid var(--sg-stat-border);
+  border-radius: 4px;
+  color: var(--sg-text-dim);
+  padding: 4px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.sg-launch-btn:hover {
+  border-color: var(--sg-section-label);
+}
+
+.sg-launch-btn-primary {
+  color: var(--color-primary);
+}
+
 /* Gradient box — used for header, tabs container */
 .sg-box {
   background: linear-gradient(to bottom, var(--sg-grad-light), var(--sg-grad-dark));
@@ -203,14 +266,13 @@ html, body, #root {
 /* Profile content area */
 .sg-profile-content {
   background-color: var(--sg-stat-bg);
-  padding: 8px 20px 20px;
+  padding: 32px 32px;
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
 
 /* Footer bar */
 .sg-footer {
-  border-radius: 0 0 6px 6px;
   height: 25px;
   background: var(--sg-tab-selected-shadow);
   box-shadow:
@@ -223,37 +285,442 @@ html, body, #root {
   padding: 0 0 1px 8px;
 }
 
-/* Edit overlay for overridable fields */
-.sg-stat-editable {
-  position: relative;
+/* Hide number input spinners globally */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
 }
 
-.sg-stat-editable .sg-edit-icon {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  opacity: 0;
+/* ============================================================
+   Card layout — grouped sections with label:value rows
+   ============================================================ */
+
+/* Card container — vertical stack of cards */
+.sg-profile-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Card — a grouped section */
+.sg-card {
+  background-color: var(--sg-stat-bg);
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--sg-stat-border);
+  overflow: hidden;
+  padding-bottom: 15px;
+}
+
+/* Card header — icon + title */
+.sg-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 72px;
   color: var(--sg-section-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--sg-stat-border);
+}
+
+/* Row — label:value pair (table-like, both columns left-aligned) */
+.sg-row {
+  display: flex;
+  align-items: center;
+  padding: 5px 72px;
+  min-height: 30px;
+}
+
+/* Vertical breathing room inside cards */
+.sg-card-header + .sg-row {
+  padding-top: 20px;
+}
+
+.sg-row-label {
+  color: var(--sg-section-label);
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+  width: 110px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sg-row-value {
+  color: var(--sg-text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sg-row-value.sg-dim {
+  opacity: 0.3;
+}
+
+/* Clickable row */
+.sg-row-clickable {
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background 0.15s;
 }
 
-.sg-stat-editable:hover .sg-edit-icon {
-  opacity: 1;
+.sg-row-clickable:hover {
+  background: color-mix(in oklch, var(--sg-stat-border) 30%, transparent);
 }
 
-.sg-stat-editable:hover .sg-edit-icon:hover {
-  color: var(--sg-text-bright);
+/* Input group — input + optional badge */
+.sg-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-/* Custom override badge */
-.sg-custom-badge {
+/* Inline input in a row */
+.sg-row-input {
+  background: color-mix(in oklch, var(--sg-stat-border) 25%, transparent);
+  border: 1px solid var(--sg-stat-border);
+  border-radius: 4px;
+  outline: none;
+  color: var(--sg-text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  width: 100px;
+  padding: 4px 8px;
+  transition: border-color 0.15s;
+}
+
+.sg-row-input:focus {
+  border-color: color-mix(in oklch, var(--color-primary) 50%, var(--sg-stat-border));
+}
+
+.sg-row-input::placeholder {
+  color: var(--sg-section-label);
+  opacity: 0.4;
+}
+
+/* "cfg" badge — shown when value comes from ezQuake config */
+.sg-from-cfg {
   display: inline-block;
   font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--color-primary, #4fbef7);
+  opacity: 0.5;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in oklch, var(--color-primary, #4fbef7) 30%, transparent);
+}
+
+/* ============================================================
+   WHO Banner — scoreboard-style identity header
+   ============================================================ */
+
+.who-banner {
+  position: relative;
+  border-radius: 6px;
+  overflow: hidden;
+  min-height: 120px;
+  box-shadow: inset 0 0 0 1px var(--sg-stat-border);
+}
+
+.who-banner-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  filter: brightness(0.35) saturate(0.7);
+}
+
+.who-banner-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.1) 0%,
+    rgba(0, 0, 0, 0.5) 100%
+  );
+}
+
+.who-banner-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 24px 32px;
+}
+
+/* Single row: [jersey] [team] [name] — all same height, evenly spaced */
+.who-banner-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.who-banner-name,
+.who-banner-team {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow:
+    1px 1px 0 #000,
+    -1px -1px 0 #000,
+    1px -1px 0 #000,
+    -1px 1px 0 #000,
+    0 0 8px rgba(0, 0, 0, 0.6);
+}
+
+/* Jersey color swatch — top/bottom split, sized to match text row */
+.qw-jersey {
+  width: 22px;
+  height: 30px;
+  border-radius: 2px;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.qw-jersey-top,
+.qw-jersey-bottom {
+  height: 50%;
+}
+
+/* ============================================================
+   QW text rendering — 3 color classes matching MatchScheduler
+   ============================================================ */
+
+.qw-name {
+  font-family: "Geist", monospace;
+  white-space: pre;
+}
+
+/* White — normal ASCII (0x20-0x7F) */
+.qw-w { color: #e2e8f0; }
+
+/* Brown — high-bit characters (>= 0x80) */
+.qw-b { color: #b8864e; }
+
+/* Gold — brackets and digits (0x10-0x1B) */
+.qw-g { color: #c89b29; }
+
+.qw-name-team {
+  font-size: inherit;
+}
+
+/* WHO banner placeholder — shown when no config is loaded */
+.who-banner-placeholder {
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px var(--sg-stat-border);
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(
+    135deg,
+    color-mix(in oklch, var(--sg-stat-bg) 100%, transparent) 0%,
+    color-mix(in oklch, var(--sg-stat-border) 30%, var(--sg-stat-bg)) 100%
+  );
+}
+
+.who-banner-placeholder-text {
+  color: var(--sg-section-label);
+  font-size: 13px;
+  font-weight: 500;
   opacity: 0.6;
-  margin-left: 6px;
+}
+
+/* Screenshot placeholder thumbnails */
+.who-screenshot-placeholders {
+  display: flex;
+  gap: 8px;
+}
+
+.who-screenshot-thumb {
+  width: 64px;
+  height: 40px;
+  border-radius: 4px;
+  background: color-mix(in oklch, var(--sg-stat-border) 40%, transparent);
+  border: 1px dashed var(--sg-stat-border);
+}
+
+/* Select dropdown — matches input style */
+.sg-row-select {
+  background: color-mix(in oklch, var(--sg-stat-border) 25%, transparent);
+  border: 1px solid var(--sg-stat-border);
+  border-radius: 4px;
+  outline: none;
+  color: var(--sg-text-dim);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 4px 8px;
+  min-width: 160px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.sg-row-select:focus {
+  border-color: color-mix(in oklch, var(--color-primary) 50%, var(--sg-stat-border));
+}
+
+.sg-row-select option {
+  background: var(--sg-stat-bg);
+  color: var(--sg-text-dim);
+}
+
+/* ============================================================
+   Custom SVG keyboard — zoomed cluster around movement keys
+   ============================================================ */
+
+.sg-keyboard-container {
+  flex: 1;
+  min-width: 0;
+  max-width: 220px;
+}
+
+.sg-keyboard-container svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Default key — dark keycap */
+.sg-kb-key {
+  fill: color-mix(in oklch, var(--sg-grad-light) 60%, var(--sg-grad-dark));
+  stroke: var(--sg-stat-border);
+  stroke-width: 1;
+}
+
+/* Movement keys — primary (blue) */
+.sg-kb-move {
+  fill: color-mix(in oklch, var(--color-primary) 30%, var(--sg-grad-dark));
+  stroke: color-mix(in oklch, var(--color-primary) 40%, var(--sg-stat-border));
+}
+
+/* Jump key — success (green) */
+.sg-kb-jump {
+  fill: color-mix(in oklch, var(--color-success) 30%, var(--sg-grad-dark));
+  stroke: color-mix(in oklch, var(--color-success) 40%, var(--sg-stat-border));
+}
+
+/* Key labels */
+.sg-kb-label {
+  fill: var(--sg-text-dim);
+  font-size: 11px;
+  font-family: "Geist", system-ui, sans-serif;
+  font-weight: 500;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.sg-kb-label-move {
+  fill: var(--color-primary);
+  font-weight: 700;
+}
+
+.sg-kb-label-jump {
+  fill: var(--color-success);
+  font-weight: 700;
+}
+
+/* ============================================================
+   Mouse layout SVG — highlights jump/movement buttons
+   ============================================================ */
+
+.sg-mouse-container {
+  flex-shrink: 0;
+}
+
+.sg-mouse-body {
+  fill: var(--sg-stat-bg);
+  stroke: var(--sg-stat-border);
+  stroke-width: 1.5;
+}
+
+.sg-mouse-btn {
+  fill: color-mix(in oklch, var(--sg-grad-light) 60%, var(--sg-grad-dark));
+  stroke: var(--sg-stat-border);
+  stroke-width: 1;
+  opacity: 0.7;
+}
+
+.sg-mouse-jump {
+  fill: color-mix(in oklch, var(--color-success) 35%, var(--sg-grad-dark));
+  stroke: var(--color-success);
+  opacity: 1;
+}
+
+.sg-mouse-move {
+  fill: color-mix(in oklch, var(--color-primary) 35%, var(--sg-grad-dark));
+  stroke: var(--color-primary);
+  opacity: 1;
+}
+
+/* ============================================================
+   Input visualization layout — keyboard + mouse side by side
+   ============================================================ */
+
+.sg-input-viz {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 8px 24px 12px;
+}
+
+.sg-input-viz-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sg-input-viz-kb {
+  flex: 1;
+  min-width: 0;
+}
+
+.sg-input-viz-ms {
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.sg-input-viz-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  font-family: "Geist", system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.sg-bind-move {
+  color: var(--color-primary);
+}
+
+.sg-bind-jump {
+  color: var(--color-success);
+}
+
+.sg-bind-sens {
+  color: var(--sg-text-dim);
+  font-weight: 500;
+}
+
+.sg-input-viz-ms .sg-input-viz-desc {
+  text-align: center;
 }

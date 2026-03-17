@@ -15,7 +15,16 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, commands::system::get_all_specs])
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            commands::system::get_all_specs,
+            commands::ezquake::validate_ezquake_path,
+            commands::ezquake::read_ezquake_config,
+            commands::ezquake::launch_ezquake,
+            commands::auth::await_oauth_callback,
+        ])
         .setup(|app| {
             // Build the right-click context menu
             let menu = MenuBuilder::new(app)
@@ -82,12 +91,20 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_app_handle, event| {
+        .run(|app_handle, event| match event {
             // Keep the app running when all windows are hidden
-            if let tauri::RunEvent::ExitRequested { api, code, .. } = event {
+            tauri::RunEvent::ExitRequested { api, code, .. } => {
                 if code.is_none() {
                     api.prevent_exit();
                 }
             }
+            // After sleep/hibernation, WebView2 can lose its rendering context
+            // and show a white screen. Force a reload to restore the UI.
+            tauri::RunEvent::Resumed => {
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.eval("window.location.reload()");
+                }
+            }
+            _ => {}
         });
 }
