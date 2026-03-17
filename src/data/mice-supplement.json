@@ -1,0 +1,28 @@
+[
+  {
+    "handle": "qw-hama-urage-illuminated-2",
+    "brand": "Hama",
+    "model": "uRage Illuminated 2",
+    "weight": null,
+    "wireless": false,
+    "shape": "ergonomic",
+    "size": null,
+    "hand": "right",
+    "sensor": null,
+    "max_dpi": 3000,
+    "polling_rate": 1000
+  },
+  {
+    "handle": "qw-microsoft-wmo-1.1a",
+    "brand": "Microsoft",
+    "model": "WMO 1.1a",
+    "weight": 80,
+    "wireless": false,
+    "shape": "symmetrical",
+    "size": "medium",
+    "hand": "both",
+    "sensor": "MLT04",
+    "max_dpi": 400,
+    "polling_rate": 125
+  }
+]

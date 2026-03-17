@@ -1,0 +1,343 @@
+[
+  {
+    "handle": "qw-steelseries-qck",
+    "brand": "SteelSeries",
+    "model": "QcK",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 2,
+    "surface_material": "fabric",
+    "edges": "raw",
+    "sizes": [
+      { "name": "Small", "dimensions": "250 × 210" },
+      { "name": "Medium", "dimensions": "320 × 270" },
+      { "name": "Large", "dimensions": "450 × 400" }
+    ]
+  },
+  {
+    "handle": "qw-steelseries-qck-plus",
+    "brand": "SteelSeries",
+    "model": "QcK+",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 2,
+    "surface_material": "fabric",
+    "edges": "raw"
+  },
+  {
+    "handle": "qw-steelseries-qck-heavy",
+    "brand": "SteelSeries",
+    "model": "QcK Heavy",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "soft",
+    "thickness": 6,
+    "surface_material": "fabric",
+    "edges": "raw",
+    "sizes": [
+      { "name": "Medium", "dimensions": "320 × 270" },
+      { "name": "Large", "dimensions": "450 × 400" },
+      { "name": "XXL", "dimensions": "900 × 400" }
+    ]
+  },
+  {
+    "handle": "qw-steelseries-9hd",
+    "brand": "SteelSeries",
+    "model": "9HD",
+    "speed": "speed",
+    "texture": "smooth",
+    "firmness": "hard",
+    "thickness": 2,
+    "surface_material": "plastic",
+    "edges": null
+  },
+  {
+    "handle": "qw-logitech-g240",
+    "brand": "Logitech",
+    "model": "G240",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 1,
+    "surface_material": "fabric",
+    "edges": "raw",
+    "sizes": [
+      { "name": "Medium", "dimensions": "340 × 280" }
+    ]
+  },
+  {
+    "handle": "qw-logitech-g440",
+    "brand": "Logitech",
+    "model": "G440",
+    "speed": "speed",
+    "texture": "smooth",
+    "firmness": "hard",
+    "thickness": 3,
+    "surface_material": "plastic",
+    "edges": null
+  },
+  {
+    "handle": "qw-fnatic-dash",
+    "brand": "Fnatic",
+    "model": "Dash",
+    "speed": "speed",
+    "texture": "smooth",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Large", "dimensions": "487 × 372" },
+      { "name": "XL", "dimensions": "950 × 500" }
+    ]
+  },
+  {
+    "handle": "qw-fnatic-focus-2",
+    "brand": "Fnatic",
+    "model": "Gear Focus 2",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Desktop", "dimensions": "487 × 372" }
+    ]
+  },
+  {
+    "handle": "qw-coolermaster-mp510",
+    "brand": "Cooler Master",
+    "model": "MP510",
+    "speed": "balanced",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Medium", "dimensions": "320 × 270" },
+      { "name": "Large", "dimensions": "450 × 350" },
+      { "name": "XL", "dimensions": "900 × 400" }
+    ]
+  },
+  {
+    "handle": "qw-coolermaster-mp511",
+    "brand": "Cooler Master",
+    "model": "MP511",
+    "speed": "balanced",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Large", "dimensions": "450 × 400" },
+      { "name": "XL", "dimensions": "900 × 400" }
+    ]
+  },
+  {
+    "handle": "qw-mionix-alioth",
+    "brand": "Mionix",
+    "model": "Alioth",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Medium", "dimensions": "370 × 320" },
+      { "name": "XL", "dimensions": "460 × 400" },
+      { "name": "XXL", "dimensions": "800 × 400" },
+      { "name": "3XL", "dimensions": "1200 × 500" }
+    ]
+  },
+  {
+    "handle": "qw-hyperx-fury-s",
+    "brand": "HyperX",
+    "model": "FURY S",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Small", "dimensions": "290 × 240" },
+      { "name": "Medium", "dimensions": "360 × 300" },
+      { "name": "Large", "dimensions": "450 × 400" },
+      { "name": "XL", "dimensions": "900 × 420" }
+    ]
+  },
+  {
+    "handle": "qw-hyperx-fury-s-speed",
+    "brand": "HyperX",
+    "model": "FURY S Speed",
+    "speed": "speed",
+    "texture": "smooth",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Medium", "dimensions": "360 × 300" },
+      { "name": "Large", "dimensions": "450 × 400" },
+      { "name": "XL", "dimensions": "900 × 420" }
+    ]
+  },
+  {
+    "handle": "qw-corsair-mm300",
+    "brand": "Corsair",
+    "model": "MM300 Pro",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Medium", "dimensions": "360 × 300" },
+      { "name": "Extended", "dimensions": "930 × 300" }
+    ]
+  },
+  {
+    "handle": "qw-a4tech-x7",
+    "brand": "A4Tech",
+    "model": "X7-500MP",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "raw"
+  },
+  {
+    "handle": "qw-svive-styx",
+    "brand": "Svive",
+    "model": "Styx",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Large", "dimensions": "460 × 400" },
+      { "name": "XL", "dimensions": "900 × 400" }
+    ]
+  },
+  {
+    "handle": "qw-sharkoon-1337",
+    "brand": "Sharkoon",
+    "model": "1337",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "raw",
+    "sizes": [
+      { "name": "V2 M", "dimensions": "355 × 255" },
+      { "name": "V2 L", "dimensions": "444 × 355" },
+      { "name": "V2 XL", "dimensions": "900 × 400" }
+    ]
+  },
+  {
+    "handle": "qw-cougar-control",
+    "brand": "Cougar",
+    "model": "Control",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 4,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Small", "dimensions": "260 × 210" },
+      { "name": "Medium", "dimensions": "320 × 270" },
+      { "name": "Large", "dimensions": "450 × 400" },
+      { "name": "XXL", "dimensions": "800 × 350" }
+    ]
+  },
+  {
+    "handle": "qw-cerapad-kin",
+    "brand": "Cerapad",
+    "model": "Kin",
+    "speed": "speed",
+    "texture": "smooth",
+    "firmness": "hard",
+    "thickness": 4,
+    "surface_material": "glass",
+    "edges": null,
+    "sizes": [
+      { "name": "Large", "dimensions": "490 × 420" }
+    ]
+  },
+  {
+    "handle": "qw-cooked-esports",
+    "brand": "Cooked eSports",
+    "model": "Mousepad",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 4,
+    "surface_material": "fabric",
+    "edges": "stitched"
+  },
+  {
+    "handle": "qw-func-f10",
+    "brand": "Func",
+    "model": "F-10",
+    "speed": "speed",
+    "texture": "smooth",
+    "firmness": "hard",
+    "thickness": 5,
+    "surface_material": "plastic",
+    "edges": null,
+    "sizes": [
+      { "name": "Medium", "dimensions": "300 × 260" }
+    ]
+  },
+  {
+    "handle": "qw-zowie-g-sr",
+    "brand": "Zowie",
+    "model": "G-SR",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "soft",
+    "thickness": 3.5,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Large", "dimensions": "470 × 390" }
+    ]
+  },
+  {
+    "handle": "qw-zowie-g-sr-se",
+    "brand": "Zowie",
+    "model": "G-SR-SE",
+    "speed": "balanced",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3.5,
+    "surface_material": "fabric",
+    "edges": "stitched",
+    "sizes": [
+      { "name": "Large", "dimensions": "470 × 390" }
+    ]
+  },
+  {
+    "handle": "qw-gmb-gaming-pad",
+    "brand": "GMB Gaming",
+    "model": "Gaming Mousepad",
+    "speed": "control",
+    "texture": "textured",
+    "firmness": "mid",
+    "thickness": 3,
+    "surface_material": "fabric",
+    "edges": "raw"
+  }
+]
