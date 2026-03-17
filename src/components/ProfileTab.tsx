@@ -286,7 +286,8 @@ export default function ProfileTab(props: ProfileTabProps) {
 
             return (
               <div class="sg-input-viz">
-                <div class="sg-input-viz-col sg-input-viz-kb">
+                {/* Row 1: Keyboard — full width */}
+                <div class="sg-input-viz-kb">
                   <KeyboardLayout movement={m} />
                   <div class="sg-input-viz-desc">
                     {kbBinds.length > 0 && (
@@ -297,18 +298,21 @@ export default function ProfileTab(props: ProfileTabProps) {
                     {kbJump && <span class="sg-bind-jump">⤴ {kbJump}</span>}
                   </div>
                 </div>
-                <div class="sg-input-viz-col sg-input-viz-ms">
+
+                {/* Row 2: Mouse on mousepad + sensitivity summary */}
+                <div class="sg-input-viz-ms">
                   <MouseLayout
                     movement={m}
                     mouseName={mouseDisplayName()}
                     mouseWeight={selectedMouseEntry()?.weight}
                     mouseWireless={selectedMouseEntry()?.wireless}
+                    mouseImage={selectedMouseEntry()?.image}
                     mousepadName={mousepadDisplayName()}
                     mousepadSpeed={selectedPadEntry()?.speed}
                     mousepadMaterial={selectedPadEntry()?.surface_material}
                     mousepadFirmness={selectedPadEntry()?.firmness}
                   />
-                  <div class="sg-input-viz-desc">
+                  <div class="sg-input-viz-desc sg-input-viz-desc-ms">
                     {msBinds.length > 0 && (
                       <span class="sg-bind-move">
                         {msBinds.map(b => `${b.arrow}${b.key}`).join("  ")}

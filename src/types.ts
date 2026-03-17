@@ -44,6 +44,7 @@ export interface MouseEntry {
   length: number | null;         // mm
   width: number | null;          // mm
   height: number | null;         // mm
+  image: string | null;          // EloShapes PNG filename e.g. "zowie-ec2-wireless.png"
 }
 
 export interface MousepadSize {
