@@ -1,4 +1,4 @@
-import { Show, For, createSignal, createMemo } from "solid-js";
+import { Show, For, createSignal, createMemo, createEffect } from "solid-js";
 import { Gauge, RefreshCw, Ruler } from "lucide-solid";
 import type { EzQuakeConfig, MonitorInfo } from "../types";
 
@@ -18,6 +18,7 @@ interface ToolsTabProps {
   ezConfig?: EzQuakeConfig | null;
   monitor?: MonitorInfo | null;
   refreshHz?: number | null;
+  savedDpi?: number | null;
 }
 
 export default function ToolsTab(props: ToolsTabProps) {
@@ -103,6 +104,13 @@ export default function ToolsTab(props: ToolsTabProps) {
   // ============================================================
   const [newDpiInput, setNewDpiInput] = createSignal("");
   const [currentDpiInput, setCurrentDpiInput] = createSignal("");
+
+  // Pre-fill current DPI from saved profile
+  createEffect(() => {
+    if (props.savedDpi && !currentDpiInput()) {
+      setCurrentDpiInput(String(props.savedDpi));
+    }
+  });
 
   const currentSens = () => props.ezConfig?.sensitivity ?? null;
   const currentYaw = () => props.ezConfig?.m_yaw ?? 0.022;
@@ -312,6 +320,11 @@ export default function ToolsTab(props: ToolsTabProps) {
           </Show>
         </Row>
         <Row label="Current Res" value={effectiveResLabel()} />
+        <div class="sg-row">
+          <span class="sg-row-value" style={{ "font-size": "11px", color: "var(--sg-section-label)" }}>
+            FOV changes with aspect ratio, not resolution. Same ratio = same FOV.
+          </span>
+        </div>
         <div class="sg-row">
           <span class="sg-row-label">New Width</span>
           <div class="sg-input-group">

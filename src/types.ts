@@ -58,6 +58,7 @@ export interface EzQuakeInstallation {
   config_dir: string;
   config_files: string[];
   valid: boolean;
+  version: string | null;  // "3.6.6.7947" from PE FileVersionRaw
 }
 
 /** A single styled character in a QW nickname (from Rust QW name expander) */

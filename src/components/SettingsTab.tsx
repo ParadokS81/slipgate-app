@@ -1,7 +1,12 @@
 import { Show, For, createSignal, createEffect, onMount } from "solid-js";
 import { LogIn, LogOut, Flag, MapPin, Image } from "lucide-solid";
 import { startDiscordAuth, logOut, onAuthChange, type User, type AuthResult } from "../auth";
-import { loadProfile, updateProfileSection, type ProfileData } from "../store";
+import {
+  loadProfile,
+  updateIdentity as storeUpdateIdentity,
+  updatePrefs as storeUpdatePrefs,
+  type ProfileData,
+} from "../store";
 
 // Countries available as flag assets (sorted by name)
 const COUNTRIES: { code: string; name: string }[] = [
@@ -86,7 +91,7 @@ export default function SettingsTab(props: SettingsTabProps) {
       // Store the Discord info from the cloud function response
       if (result.discord) {
         setDiscordName(result.discord.discordUsername);
-        await updateProfileSection("identity", {
+        await storeUpdateIdentity({
           discord_id: result.discord.discordUserId,
           discord_username: result.discord.discordUsername,
           discord_avatar: result.discord.discordAvatarHash,
@@ -104,13 +109,13 @@ export default function SettingsTab(props: SettingsTabProps) {
   }
 
   async function updateIdentity(field: string, value: string | null) {
-    const updated = await updateProfileSection("identity", { [field]: value });
+    const updated = await storeUpdateIdentity({ [field]: value });
     setProfile(updated);
     props.onProfileUpdate?.(updated);
   }
 
   async function updatePrefs(field: string, value: string) {
-    const updated = await updateProfileSection("prefs", { [field]: value });
+    const updated = await storeUpdatePrefs({ [field]: value });
     setProfile(updated);
     props.onProfileUpdate?.(updated);
   }

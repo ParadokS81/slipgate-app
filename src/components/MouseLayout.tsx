@@ -3,13 +3,13 @@ import type { MovementKeys } from "../types";
 // Map our key names to mouse button IDs
 function getMouseButtonId(key: string): string | null {
   const map: Record<string, string> = {
-    "Mouse1": "mouse1",
-    "Mouse2": "mouse2",
-    "Mouse3": "mouse3",    // middle/scroll click
-    "Mouse4": "mouse4",    // thumb back
-    "Mouse5": "mouse5",    // thumb forward
-    "MWheelUp": "mwheel",
-    "MWheelDown": "mwheel",
+    Mouse1: "mouse1",
+    Mouse2: "mouse2",
+    Mouse3: "mouse3",    // middle/scroll click
+    Mouse4: "mouse4",    // thumb back
+    Mouse5: "mouse5",    // thumb forward
+    MWheelUp: "mwheel",
+    MWheelDown: "mwheel",
   };
   return map[key] ?? null;
 }
@@ -20,11 +20,6 @@ interface MouseLayoutProps {
 
 export default function MouseLayout(props: MouseLayoutProps) {
   const jumpButton = () => getMouseButtonId(props.movement.jump);
-
-  const buttonClass = (id: string) => {
-    if (jumpButton() === id) return "sg-mouse-btn sg-mouse-jump";
-    return "sg-mouse-btn";
-  };
 
   // Check if any movement key is a mouse button
   const moveButtons = () => {
@@ -45,35 +40,37 @@ export default function MouseLayout(props: MouseLayoutProps) {
 
   return (
     <div class="sg-mouse-container">
-      <svg viewBox="0 0 80 130" width="60" xmlns="http://www.w3.org/2000/svg">
-        {/* Mouse body */}
-        <rect x="5" y="20" width="70" height="100" rx="30" ry="20"
-          class="sg-mouse-body" />
+      <svg viewBox="0 0 100 160" width="80" xmlns="http://www.w3.org/2000/svg">
+        {/* Mouse body — ergonomic shape (GPX-inspired) */}
+        <path
+          d="M50 8 C35 8 22 18 18 40 C14 62 13 95 16 120 C19 140 32 152 50 155 C68 152 81 140 84 120 C87 95 86 62 82 40 C78 18 65 8 50 8 Z"
+          class="sg-mouse-body"
+        />
 
         {/* Left button (Mouse1) */}
-        <path d="M5 50 L5 40 Q5 20 25 20 L38 20 L38 55 L5 55 Z"
-          class={btnClass("mouse1")} />
+        <path
+          d="M48 10 C36 10 24 18 20 38 L20 62 L48 62 Z"
+          class={btnClass("mouse1")}
+        />
 
         {/* Right button (Mouse2) */}
-        <path d="M42 20 L55 20 Q75 20 75 40 L75 55 L42 55 L42 20 Z"
-          class={btnClass("mouse2")} />
+        <path
+          d="M52 10 C64 10 76 18 80 38 L80 62 L52 62 Z"
+          class={btnClass("mouse2")}
+        />
 
         {/* Scroll wheel */}
-        <rect x="34" y="30" width="12" height="20" rx="6"
-          class={btnClass("mwheel")} />
+        <rect x="43" y="28" width="14" height="24" rx="7"
+          class={btnClass("mwheel")}
+        />
 
         {/* Side buttons (thumb) */}
-        <rect x="0" y="62" width="8" height="14" rx="3"
-          class={btnClass("mouse5")} />
-        <rect x="0" y="80" width="8" height="14" rx="3"
-          class={btnClass("mouse4")} />
-
-        {/* Labels for highlighted buttons */}
-        {jumpButton() === "mouse1" && <text x="22" y="44" class="sg-mouse-label">jump</text>}
-        {jumpButton() === "mouse2" && <text x="58" y="44" class="sg-mouse-label">jump</text>}
-        {jumpButton() === "mwheel" && <text x="40" y="64" class="sg-mouse-label">jump</text>}
-        {jumpButton() === "mouse4" && <text x="4" y="78" class="sg-mouse-label-side">j</text>}
-        {jumpButton() === "mouse5" && <text x="4" y="60" class="sg-mouse-label-side">j</text>}
+        <rect x="7" y="76" width="10" height="15" rx="4"
+          class={btnClass("mouse5")}
+        />
+        <rect x="8" y="95" width="10" height="15" rx="4"
+          class={btnClass("mouse4")}
+        />
       </svg>
     </div>
   );

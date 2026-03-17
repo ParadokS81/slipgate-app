@@ -13,7 +13,6 @@
         "daisyui": "^5.5.1-beta.2",
         "firebase": "^12.10.0",
         "lucide-solid": "^0.577.0",
-        "simple-keyboard": "^3.8.120",
         "simple-keyboard-layouts": "^3.4.179",
         "solid-js": "^1.9.3",
         "tailwindcss": "^4.2.1",
@@ -553,8 +552,6 @@
     "seroval-plugins": ["seroval-plugins@1.5.0", "", { "peerDependencies": { "seroval": "^1.0" } }, "sha512-EAHqADIQondwRZIdeW2I636zgsODzoBDwb3PT/+7TLDWyw1Dy/Xv7iGUIEXXav7usHDE9HVhOU61irI3EnyyHA=="],
 
     "sharp": ["sharp@0.34.5", "", { "dependencies": { "@img/colour": "^1.0.0", "detect-libc": "^2.1.2", "semver": "^7.7.3" }, "optionalDependencies": { "@img/sharp-darwin-arm64": "0.34.5", "@img/sharp-darwin-x64": "0.34.5", "@img/sharp-libvips-darwin-arm64": "1.2.4", "@img/sharp-libvips-darwin-x64": "1.2.4", "@img/sharp-libvips-linux-arm": "1.2.4", "@img/sharp-libvips-linux-arm64": "1.2.4", "@img/sharp-libvips-linux-ppc64": "1.2.4", "@img/sharp-libvips-linux-riscv64": "1.2.4", "@img/sharp-libvips-linux-s390x": "1.2.4", "@img/sharp-libvips-linux-x64": "1.2.4", "@img/sharp-libvips-linuxmusl-arm64": "1.2.4", "@img/sharp-libvips-linuxmusl-x64": "1.2.4", "@img/sharp-linux-arm": "0.34.5", "@img/sharp-linux-arm64": "0.34.5", "@img/sharp-linux-ppc64": "0.34.5", "@img/sharp-linux-riscv64": "0.34.5", "@img/sharp-linux-s390x": "0.34.5", "@img/sharp-linux-x64": "0.34.5", "@img/sharp-linuxmusl-arm64": "0.34.5", "@img/sharp-linuxmusl-x64": "0.34.5", "@img/sharp-wasm32": "0.34.5", "@img/sharp-win32-arm64": "0.34.5", "@img/sharp-win32-ia32": "0.34.5", "@img/sharp-win32-x64": "0.34.5" } }, "sha512-Ou9I5Ft9WNcCbXrU9cMgPBcCK8LiwLqcbywW3t4oDV37n1pzpuNLsYiAV8eODnjbtQlSDwZ2cUEeQz4E54Hltg=="],
-
-    "simple-keyboard": ["simple-keyboard@3.8.120", "", {}, "sha512-HUHjayw+xJkWmlIiUvvD/KzgJYAovdpdYtBGVW4O2TMz1yYjjSqddPSCM64iL+EbTjvzwBsPI23nKrymuuxRtQ=="],
 
     "simple-keyboard-layouts": ["simple-keyboard-layouts@3.4.179", "", {}, "sha512-U/y8UdlbtgTVeiVeQI8TwcZckkZeJXkfBbhik9ELOGC3cUo9qyUTXqc1Xll1u31H9FRH3W1+clatlukVk1Z3tA=="],
 

@@ -3,10 +3,13 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ArrowLeft, HardDrive, Crosshair, Monitor, Rocket } from "lucide-solid";
 import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo } from "../types";
+import type { ProfileData } from "../store";
+import { getPrimarySetup } from "../store";
 
 interface ClientsTabProps {
-  onConfigLoaded?: (config: EzQuakeConfig) => void;
+  onConfigLoaded?: (config: EzQuakeConfig, exePath: string, configName: string, version: string | null) => void;
   monitor?: MonitorInfo | null;
+  profile?: ProfileData | null;
 }
 
 /** A single label -> value row inside a card */
@@ -23,18 +26,25 @@ function Row(props: { label: string; value?: string | null; dim?: boolean; child
 
 export default function ClientsTab(props: ClientsTabProps) {
   const [view, setView] = createSignal<"list" | "detail">("list");
-  const [exePath, setExePath] = createSignal(localStorage.getItem("ezquake_exe_path") || "");
+  const [exePath, setExePath] = createSignal("");
   const [installation, setInstallation] = createSignal<EzQuakeInstallation | null>(null);
   const [config, setConfig] = createSignal<EzQuakeConfig | null>(null);
   const [selectedConfig, setSelectedConfig] = createSignal("config.cfg");
   const [error, setError] = createSignal("");
   const [connectAddress, setConnectAddress] = createSignal("");
 
-  // Validate path and load config on mount if we have a saved path
+  // Restore saved path from profile store
   createEffect(() => {
-    const saved = exePath();
-    if (saved) {
-      validateAndLoad(saved);
+    const prof = props.profile;
+    if (!prof) return;
+    const setup = getPrimarySetup(prof);
+    const savedPath = setup.client.exe_path;
+    if (savedPath && !exePath()) {
+      setExePath(savedPath);
+      if (setup.client.config_name) {
+        setSelectedConfig(setup.client.config_name);
+      }
+      validateAndLoad(savedPath);
     }
   });
 
@@ -44,12 +54,11 @@ export default function ClientsTab(props: ClientsTabProps) {
       const info = await invoke<EzQuakeInstallation>("validate_ezquake_path", { exePath: path });
       setInstallation(info);
       if (info.valid) {
-        localStorage.setItem("ezquake_exe_path", path);
         setExePath(path);
         const cfgName = info.config_files.includes("config.cfg") ? "config.cfg" : info.config_files[0];
         if (cfgName) {
           setSelectedConfig(cfgName);
-          await loadConfig(path, cfgName);
+          await loadConfig(path, cfgName, info.version);
         }
       } else {
         setError("Not a valid ezQuake executable");
@@ -59,7 +68,7 @@ export default function ClientsTab(props: ClientsTabProps) {
     }
   }
 
-  async function loadConfig(path: string, cfgName: string) {
+  async function loadConfig(path: string, cfgName: string, version?: string | null) {
     try {
       const cfg = await invoke<EzQuakeConfig>("read_ezquake_config", {
         exePath: path,
@@ -67,7 +76,8 @@ export default function ClientsTab(props: ClientsTabProps) {
       });
       setConfig(cfg);
       setError("");
-      props.onConfigLoaded?.(cfg);
+      // Notify App.tsx — saves path + config name + version to store
+      props.onConfigLoaded?.(cfg, path, cfgName, version ?? null);
     } catch (e) {
       console.error("Failed to load config:", e);
       setError(`Config parse failed: ${e}`);
@@ -94,7 +104,7 @@ export default function ClientsTab(props: ClientsTabProps) {
     setSelectedConfig(cfgName);
     const path = exePath();
     if (path) {
-      await loadConfig(path, cfgName);
+      await loadConfig(path, cfgName, installation()?.version);
     }
   }
 

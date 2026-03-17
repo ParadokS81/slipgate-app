@@ -495,6 +495,71 @@ pub struct EzQuakeInstallation {
     pub config_dir: String,
     pub config_files: Vec<String>,
     pub valid: bool,
+    pub version: Option<String>,
+}
+
+/// Read PE FileVersionRaw from an executable (Windows only).
+#[cfg(target_os = "windows")]
+fn read_exe_version(path: &Path) -> Option<String> {
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::{
+        GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
+    };
+
+    let wide_path: Vec<u16> = path
+        .to_string_lossy()
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+
+    unsafe {
+        let mut handle = 0u32;
+        let size = GetFileVersionInfoSizeW(PCWSTR(wide_path.as_ptr()), Some(&mut handle));
+        if size == 0 {
+            return None;
+        }
+
+        let mut buffer = vec![0u8; size as usize];
+        let ok = GetFileVersionInfoW(
+            PCWSTR(wide_path.as_ptr()),
+            Some(handle),
+            size,
+            buffer.as_mut_ptr() as *mut _,
+        );
+        if !ok.is_ok() {
+            return None;
+        }
+
+        let mut info_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
+        let mut info_len: u32 = 0;
+        let sub_block: Vec<u16> = "\\\0".encode_utf16().collect();
+        let ok = VerQueryValueW(
+            buffer.as_ptr() as *const _,
+            PCWSTR(sub_block.as_ptr()),
+            &mut info_ptr,
+            &mut info_len,
+        );
+        if !ok.as_bool() || info_ptr.is_null() {
+            return None;
+        }
+
+        let info = &*(info_ptr as *const VS_FIXEDFILEINFO);
+        let major = (info.dwFileVersionMS >> 16) & 0xFFFF;
+        let minor = info.dwFileVersionMS & 0xFFFF;
+        let patch = (info.dwFileVersionLS >> 16) & 0xFFFF;
+        let build = info.dwFileVersionLS & 0xFFFF;
+
+        if major == 0 && minor == 0 && patch == 0 && build == 0 {
+            return None; // No version info
+        }
+
+        Some(format!("{}.{}.{}.{}", major, minor, patch, build))
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn read_exe_version(_path: &Path) -> Option<String> {
+    None // Version detection only supported on Windows for now
 }
 
 #[tauri::command]
@@ -507,8 +572,11 @@ pub fn validate_ezquake_path(exe_path: String) -> EzQuakeInstallation {
             config_dir: String::new(),
             config_files: Vec::new(),
             valid: false,
+            version: None,
         };
     }
+
+    let version = read_exe_version(&path);
 
     let cfg_dir = config_dir_from_exe(&path);
     let config_files = if cfg_dir.exists() {
@@ -531,6 +599,7 @@ pub fn validate_ezquake_path(exe_path: String) -> EzQuakeInstallation {
         config_dir: cfg_dir.to_string_lossy().to_string(),
         config_files,
         valid: true,
+        version,
     }
 }
 

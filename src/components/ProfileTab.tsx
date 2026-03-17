@@ -1,6 +1,8 @@
 import { Show, createSignal, createMemo, createEffect } from "solid-js";
 import { Cpu, Monitor, Keyboard, Crosshair, Gamepad2, Eye } from "lucide-solid";
 import type { AllSpecs, MonitorInfo, GearProfile, MouseEntry, MousepadEntry, EzQuakeConfig } from "../types";
+import type { ProfileData, SetupHardware } from "../store";
+import { getPrimarySetup } from "../store";
 import { MouseSelector, MousepadSelector } from "./GearSelector";
 import WhoBanner from "./WhoBanner";
 import KeyboardLayout from "./KeyboardLayout";
@@ -41,6 +43,8 @@ interface ProfileTabProps {
   loading: boolean;
   onRefresh: () => void;
   ezConfig?: EzQuakeConfig | null;
+  profile?: ProfileData | null;
+  onHardwareUpdate?: (data: Partial<SetupHardware>) => void;
 }
 
 export default function ProfileTab(props: ProfileTabProps) {
@@ -68,13 +72,36 @@ export default function ProfileTab(props: ProfileTabProps) {
   const [sensInput, setSensInput] = createSignal("");
   const [yawInput, setYawInput] = createSignal("0.022");
 
-  // Auto-fill from ezQuake config when available
+  // Restore saved gear from profile store
+  let profileLoaded = false;
+  createEffect(() => {
+    const prof = props.profile;
+    if (!prof || profileLoaded) return;
+    profileLoaded = true;
+
+    const hw = getPrimarySetup(prof).hardware;
+    if (hw.dpi) {
+      setDpiInput(String(hw.dpi));
+      setGear(g => ({ ...g, dpi: hw.dpi }));
+    }
+    if (hw.mouse_model) {
+      setGear(g => ({ ...g, mouse: hw.mouse_model }));
+    }
+    if (hw.mousepad_model) {
+      setGear(g => ({ ...g, mousepad: hw.mousepad_model }));
+    }
+    if (hw.keyboard_name) {
+      setGear(g => ({ ...g, keyboardName: hw.keyboard_name }));
+    }
+  });
+
+  // Auto-fill sensitivity from ezQuake config (config is source of truth for sens/m_yaw)
   createEffect(() => {
     const cfg = props.ezConfig;
     if (!cfg) return;
-    if (!sensInput()) setSensInput(String(cfg.sensitivity));
-    if (yawInput() === "0.022" && cfg.m_yaw !== 0.022) setYawInput(String(cfg.m_yaw));
-    if (!gear().sensitivity && cfg.sensitivity) saveSens();
+    setSensInput(String(cfg.sensitivity));
+    if (cfg.m_yaw !== 0.022) setYawInput(String(cfg.m_yaw));
+    setGear(g => ({ ...g, sensitivity: cfg.sensitivity }));
   });
 
   // cm/360 = 914.4 / (DPI * sensitivity * m_yaw)
@@ -105,13 +132,17 @@ export default function ProfileTab(props: ProfileTabProps) {
   });
 
   function handleMouseSelect(m: MouseEntry) {
-    setGear((g) => ({ ...g, mouse: { handle: m.handle, brand: m.brand, model: m.model } }));
+    const selection = { handle: m.handle, brand: m.brand, model: m.model };
+    setGear((g) => ({ ...g, mouse: selection }));
     setShowMouseSelector(false);
+    props.onHardwareUpdate?.({ mouse_model: selection });
   }
 
   function handleMousepadSelect(p: MousepadEntry) {
-    setGear((g) => ({ ...g, mousepad: { handle: p.handle, brand: p.brand, model: p.model } }));
+    const selection = { handle: p.handle, brand: p.brand, model: p.model };
+    setGear((g) => ({ ...g, mousepad: selection }));
     setShowMousepadSelector(false);
+    props.onHardwareUpdate?.({ mousepad_model: selection });
   }
 
   function startEditKeyboard() {
@@ -120,14 +151,17 @@ export default function ProfileTab(props: ProfileTabProps) {
   }
 
   function saveKeyboard() {
-    const val = keyboardInput().trim();
-    setGear((g) => ({ ...g, keyboardName: val || null }));
+    const val = keyboardInput().trim() || null;
+    setGear((g) => ({ ...g, keyboardName: val }));
     setEditingKeyboard(false);
+    props.onHardwareUpdate?.({ keyboard_name: val });
   }
 
   function saveDpi() {
     const val = parseInt(dpiInput());
-    setGear((g) => ({ ...g, dpi: val > 0 ? val : null }));
+    const dpi = val > 0 ? val : null;
+    setGear((g) => ({ ...g, dpi }));
+    props.onHardwareUpdate?.({ dpi });
   }
 
   function saveSens() {
@@ -168,14 +202,6 @@ export default function ProfileTab(props: ProfileTabProps) {
   const keyboardDisplayName = () =>
     gear().keyboardName || detectedKeyboards()[0]?.name || null;
 
-  // HOW section: movement keys from config bindings
-  const movementKeys = () => {
-    const cvars = props.ezConfig?.raw_cvars;
-    if (!cvars) return null;
-    // We'd need to parse bindings — for now show basic info
-    return null;
-  };
-
   return (
     <div class="sg-profile-cards">
       {/* ================================================================
@@ -210,31 +236,57 @@ export default function ProfileTab(props: ProfileTabProps) {
           <span>Input</span>
         </div>
         <Show when={props.ezConfig}>
-          <div class="sg-row">
-            <span class="sg-row-label">Movement</span>
-            <div class="movement-keys">
-              <div class="movement-keys-row">
-                <div class="movement-key">{props.ezConfig!.movement.forward}</div>
+          {(() => {
+            const m = props.ezConfig!.movement;
+            const isMouse = (k: string) => k.startsWith("Mouse") || k.startsWith("MWheel");
+
+            // Keyboard-bound binds (for description under keyboard)
+            const kbBinds: { arrow: string; key: string }[] = [];
+            if (!isMouse(m.forward))   kbBinds.push({ arrow: "↑", key: m.forward });
+            if (!isMouse(m.moveleft))  kbBinds.push({ arrow: "←", key: m.moveleft });
+            if (!isMouse(m.back))      kbBinds.push({ arrow: "↓", key: m.back });
+            if (!isMouse(m.moveright)) kbBinds.push({ arrow: "→", key: m.moveright });
+            const kbJump = !isMouse(m.jump) ? m.jump : null;
+
+            // Mouse-bound binds (for description under mouse)
+            const msBinds: { arrow: string; key: string }[] = [];
+            if (isMouse(m.forward))   msBinds.push({ arrow: "↑", key: m.forward });
+            if (isMouse(m.moveleft))  msBinds.push({ arrow: "←", key: m.moveleft });
+            if (isMouse(m.back))      msBinds.push({ arrow: "↓", key: m.back });
+            if (isMouse(m.moveright)) msBinds.push({ arrow: "→", key: m.moveright });
+            const msJump = isMouse(m.jump) ? m.jump : null;
+
+            return (
+              <div class="sg-input-viz">
+                <div class="sg-input-viz-col sg-input-viz-kb">
+                  <KeyboardLayout movement={m} />
+                  <div class="sg-input-viz-desc">
+                    {kbBinds.length > 0 && (
+                      <span class="sg-bind-move">
+                        {kbBinds.map(b => `${b.arrow}${b.key}`).join("  ")}
+                      </span>
+                    )}
+                    {kbJump && <span class="sg-bind-jump">⤴ {kbJump}</span>}
+                  </div>
+                </div>
+                <div class="sg-input-viz-col sg-input-viz-ms">
+                  <MouseLayout movement={m} />
+                  <div class="sg-input-viz-desc">
+                    {msBinds.length > 0 && (
+                      <span class="sg-bind-move">
+                        {msBinds.map(b => `${b.arrow}${b.key}`).join("  ")}
+                      </span>
+                    )}
+                    {msJump && <span class="sg-bind-jump">jump: {msJump}</span>}
+                    <span class={cm360() ? "sg-bind-sens" : "sg-bind-sens sg-dim"}>
+                      {cm360() ? `${cm360()} cm/360` : "Set DPI + sens"}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div class="movement-keys-row">
-                <div class="movement-key">{props.ezConfig!.movement.moveleft}</div>
-                <div class="movement-key">{props.ezConfig!.movement.back}</div>
-                <div class="movement-key">{props.ezConfig!.movement.moveright}</div>
-              </div>
-            </div>
-            <div class="movement-jump">
-              <div class="movement-key movement-key-wide">{props.ezConfig!.movement.jump}</div>
-              <span class="movement-label">jump</span>
-            </div>
-          </div>
-          <div style={{ padding: "8px 24px 12px", display: "flex", "align-items": "flex-start", gap: "16px" }}>
-            <KeyboardLayout movement={props.ezConfig!.movement} />
-            <MouseLayout movement={props.ezConfig!.movement} />
-          </div>
+            );
+          })()}
         </Show>
-        <Row label="cm/360" value={cm360() ? `${cm360()} cm` : null} dim={!cm360()}>
-          {cm360() ? `${cm360()} cm` : "Set DPI + sens in System Specs"}
-        </Row>
       </div>
 
       {/* Output: display + FOV — single consolidated line */}

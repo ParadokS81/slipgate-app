@@ -1,7 +1,9 @@
 import { createSignal, Match, onMount, Switch } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { currentMonitor, availableMonitors } from "@tauri-apps/api/window";
-import type { AllSpecs, MonitorInfo, EzQuakeConfig } from "./types";
+import type { AllSpecs, MonitorInfo, EzQuakeConfig, EzQuakeInstallation } from "./types";
+import type { ProfileData, SetupHardware, ClientInfo } from "./store";
+import { loadProfile, updatePrimaryClient, updatePrimaryHardware, getPrimarySetup } from "./store";
 import SideNav from "./components/SideNav";
 import ProfileTab from "./components/ProfileTab";
 import ToolsTab from "./components/ToolsTab";
@@ -15,9 +17,9 @@ function App() {
   const [monitor, setMonitor] = createSignal<MonitorInfo | null>(null);
   const [loading, setLoading] = createSignal(true);
   const [ezConfig, setEzConfig] = createSignal<EzQuakeConfig | null>(null);
+  const [profile, setProfile] = createSignal<ProfileData | null>(null);
 
   async function loadSpecs() {
-    setLoading(true);
     try {
       const [allSpecs, monitors, primary] = await Promise.all([
         invoke<AllSpecs>("get_all_specs"),
@@ -35,12 +37,72 @@ function App() {
     } catch (e) {
       console.error("Failed to load specs:", e);
     }
-    setLoading(false);
   }
 
-  onMount(() => {
-    loadSpecs();
+  /** Try to auto-load ezQuake config from saved client path */
+  async function autoLoadConfig(prof: ProfileData) {
+    const setup = getPrimarySetup(prof);
+    const exePath = setup.client.exe_path;
+    if (!exePath) return;
+
+    try {
+      // Validate the path still exists and get version
+      const info = await invoke<EzQuakeInstallation>("validate_ezquake_path", { exePath });
+      if (!info.valid) return;
+
+      // Update stored version if it changed
+      if (info.version !== setup.client.version) {
+        const updated = await updatePrimaryClient({ version: info.version });
+        setProfile(updated);
+      }
+
+      // Load the config
+      const cfgName = setup.client.config_name
+        ?? (info.config_files.includes("config.cfg") ? "config.cfg" : info.config_files[0]);
+      if (cfgName) {
+        const cfg = await invoke<EzQuakeConfig>("read_ezquake_config", {
+          exePath,
+          configName: cfgName,
+        });
+        setEzConfig(cfg);
+      }
+    } catch (e) {
+      console.error("Failed to auto-load config:", e);
+    }
+  }
+
+  onMount(async () => {
+    setLoading(true);
+
+    // Load profile and specs in parallel
+    const [_, prof] = await Promise.all([
+      loadSpecs(),
+      loadProfile(),
+    ]);
+    setProfile(prof);
+
+    // Auto-load ezQuake config if we have a saved path
+    await autoLoadConfig(prof);
+
+    setLoading(false);
   });
+
+  /** Called by ClientsTab when a config is loaded (updates both signal and store) */
+  async function handleConfigLoaded(cfg: EzQuakeConfig, exePath: string, configName: string, version: string | null) {
+    setEzConfig(cfg);
+    const updated = await updatePrimaryClient({
+      exe_path: exePath,
+      config_name: configName,
+      version,
+    });
+    setProfile(updated);
+  }
+
+  /** Called by ProfileTab/ClientsTab to update hardware in the store */
+  async function handleHardwareUpdate(data: Partial<SetupHardware>) {
+    const updated = await updatePrimaryHardware(data);
+    setProfile(updated);
+  }
 
   return (
     <div class="flex flex-col h-full">
@@ -62,6 +124,8 @@ function App() {
                 loading={loading()}
                 onRefresh={loadSpecs}
                 ezConfig={ezConfig()}
+                profile={profile()}
+                onHardwareUpdate={handleHardwareUpdate}
               />
             </Match>
             <Match when={activeTab() === "tools"}>
@@ -69,10 +133,15 @@ function App() {
                 ezConfig={ezConfig()}
                 monitor={monitor()}
                 refreshHz={specs()?.display.refresh_hz ?? null}
+                savedDpi={profile() ? getPrimarySetup(profile()!).hardware.dpi : null}
               />
             </Match>
             <Match when={activeTab() === "clients"}>
-              <ClientsTab onConfigLoaded={setEzConfig} monitor={monitor()} />
+              <ClientsTab
+                onConfigLoaded={handleConfigLoaded}
+                monitor={monitor()}
+                profile={profile()}
+              />
             </Match>
             <Match when={activeTab() === "settings"}>
               <SettingsTab />
