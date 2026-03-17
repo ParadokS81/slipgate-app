@@ -128,9 +128,11 @@ export function MouseSelector(props: {
         secondary: [
           m.weight ? `${m.weight}g` : null,
           m.wireless ? "wireless" : m.wireless === false ? "wired" : null,
+          m.shape ?? null,
+          m.sensor ?? null,
         ]
           .filter(Boolean)
-          .join(" / "),
+          .join(" · "),
       })}
     />
   );
@@ -153,6 +155,13 @@ export function MousepadSelector(props: {
       }}
       renderItem={(p) => ({
         primary: `${p.brand} ${p.model}`,
+        secondary: [
+          p.speed ?? null,
+          p.surface_material ?? null,
+          p.firmness ?? null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       })}
     />
   );

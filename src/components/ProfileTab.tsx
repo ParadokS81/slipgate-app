@@ -9,9 +9,11 @@ import KeyboardLayout from "./KeyboardLayout";
 import MouseLayout from "./MouseLayout";
 import miceData from "../data/mice.json";
 import mousepadsData from "../data/mousepads.json";
+import miceSupplement from "../data/mice-supplement.json";
+import mousepadsSupplement from "../data/mousepads-supplement.json";
 
-const mice = miceData as MouseEntry[];
-const mousepads = mousepadsData as MousepadEntry[];
+const mice = [...(miceData as MouseEntry[]), ...(miceSupplement as MouseEntry[])];
+const mousepads = [...(mousepadsData as MousepadEntry[]), ...(mousepadsSupplement as MousepadEntry[])];
 
 function formatRam(gb: number, ddr: string | null): string {
   const rounded = Math.round(gb);
@@ -202,6 +204,32 @@ export default function ProfileTab(props: ProfileTabProps) {
   const keyboardDisplayName = () =>
     gear().keyboardName || detectedKeyboards()[0]?.name || null;
 
+  // Look up full mouse/mousepad entries from data for rich display
+  const selectedMouseEntry = createMemo(() => {
+    const sel = gear().mouse;
+    if (!sel) return null;
+    return mice.find(m => m.handle === sel.handle) ?? null;
+  });
+
+  const selectedPadEntry = createMemo(() => {
+    const sel = gear().mousepad;
+    if (!sel) return null;
+    return mousepads.find(p => p.handle === sel.handle) ?? null;
+  });
+
+  // Sensitivity indicators from config
+  const invertY = () => props.ezConfig ? props.ezConfig.m_pitch < 0 : null;
+  const hasAccel = () => props.ezConfig ? props.ezConfig.m_accel > 0 : null;
+  const mPitch = () => props.ezConfig?.m_pitch ?? null;
+  const mPitchDisplay = () => {
+    const p = mPitch();
+    if (p === null) return null;
+    const abs = Math.abs(p);
+    const yaw = props.ezConfig?.m_yaw ?? 0.022;
+    if (abs === yaw) return null; // default = same as yaw, not interesting
+    return abs.toFixed(4);
+  };
+
   return (
     <div class="sg-profile-cards">
       {/* ================================================================
@@ -270,7 +298,16 @@ export default function ProfileTab(props: ProfileTabProps) {
                   </div>
                 </div>
                 <div class="sg-input-viz-col sg-input-viz-ms">
-                  <MouseLayout movement={m} />
+                  <MouseLayout
+                    movement={m}
+                    mouseName={mouseDisplayName()}
+                    mouseWeight={selectedMouseEntry()?.weight}
+                    mouseWireless={selectedMouseEntry()?.wireless}
+                    mousepadName={mousepadDisplayName()}
+                    mousepadSpeed={selectedPadEntry()?.speed}
+                    mousepadMaterial={selectedPadEntry()?.surface_material}
+                    mousepadFirmness={selectedPadEntry()?.firmness}
+                  />
                   <div class="sg-input-viz-desc">
                     {msBinds.length > 0 && (
                       <span class="sg-bind-move">
@@ -286,6 +323,25 @@ export default function ProfileTab(props: ProfileTabProps) {
               </div>
             );
           })()}
+
+          {/* Sensitivity indicators row */}
+          <div class="sg-sens-indicators">
+            {invertY() !== null && (
+              <span class="sg-sens-tag" classList={{ "sg-sens-active": invertY()! }}>
+                invert Y {invertY() ? "ON" : "OFF"}
+              </span>
+            )}
+            {hasAccel() !== null && (
+              <span class="sg-sens-tag" classList={{ "sg-sens-active": hasAccel()! }}>
+                accel {hasAccel() ? "ON" : "OFF"}
+              </span>
+            )}
+            {mPitchDisplay() && (
+              <span class="sg-sens-tag sg-sens-active" title="Vertical sensitivity differs from horizontal (m_pitch ≠ m_yaw)">
+                m_pitch {mPitchDisplay()}
+              </span>
+            )}
+          </div>
         </Show>
       </div>
 
