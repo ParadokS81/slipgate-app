@@ -35,19 +35,21 @@ fn default_cvars() -> HashMap<&'static str, &'static str> {
     ])
 }
 
-/// Parsed config data — cvars and key bindings.
+/// Parsed config data — cvars, key bindings, and aliases.
 struct ParsedConfig {
     cvars: HashMap<String, String>,
-    bindings: Vec<(String, String)>, // ordered list of (key, command), preserves file order
+    bindings: Vec<(String, String)>,          // ordered list of (key, command)
+    aliases: HashMap<String, String>,         // alias name → command string
 }
 
 /// Parse an ezQuake config file into cvars and key bindings.
 fn parse_config(content: &str) -> ParsedConfig {
     let mut cvars = HashMap::new();
     let mut bindings = Vec::new();
+    let mut aliases = HashMap::new();
 
     let skip_commands = [
-        "unbind", "unbindall", "alias", "unaliasall",
+        "unbind", "unbindall", "unaliasall",
         "exec", "set", "tp_pickup", "tp_took", "tp_point",
         "filter", "mapgroup", "skygroup", "floodprot",
         "hud_recalculate", "sb_sourceunmarkall", "sb_sourcemark",
@@ -88,6 +90,24 @@ fn parse_config(content: &str) -> ParsedConfig {
             continue;
         }
 
+        // Parse alias lines: alias NAME "command"
+        if key_lower == "alias" {
+            if let Some(rest) = parts.next() {
+                let rest = rest.trim();
+                let mut alias_parts = rest.splitn(2, char::is_whitespace);
+                if let (Some(alias_name), Some(alias_cmd)) = (alias_parts.next(), alias_parts.next()) {
+                    let cmd = alias_cmd.trim();
+                    let cmd = if cmd.starts_with('"') && cmd.ends_with('"') && cmd.len() >= 2 {
+                        &cmd[1..cmd.len() - 1]
+                    } else {
+                        cmd
+                    };
+                    aliases.insert(alias_name.to_string(), cmd.to_string());
+                }
+            }
+            continue;
+        }
+
         if skip_commands.iter().any(|&cmd| key_lower == cmd) {
             continue;
         }
@@ -103,7 +123,7 @@ fn parse_config(content: &str) -> ParsedConfig {
         }
     }
 
-    ParsedConfig { cvars, bindings }
+    ParsedConfig { cvars, bindings, aliases }
 }
 
 // ============================================================
@@ -332,6 +352,7 @@ pub struct EzQuakeConfig {
     pub vid_displayfrequency: u32,
     pub cl_maxfps: u32,
     pub movement: MovementKeys,
+    pub weapon_binds: Vec<WeaponBind>,
     pub raw_cvars: HashMap<String, String>,
 }
 
@@ -383,8 +404,245 @@ fn format_key_name(key: &str) -> String {
     }
 }
 
+// ============================================================
+// Weapon bind analysis
+// ============================================================
+
+/// QW weapon impulse → name mapping
+fn impulse_to_weapon(n: u32) -> Option<&'static str> {
+    match n {
+        1 => Some("axe"),
+        2 => Some("sg"),
+        3 => Some("ssg"),
+        4 => Some("ng"),
+        5 => Some("sng"),
+        6 => Some("gl"),
+        7 => Some("rl"),
+        8 => Some("lg"),
+        _ => None,
+    }
+}
+
+/// A detected weapon bind.
+#[derive(Serialize, Clone, Debug)]
+pub struct WeaponBind {
+    pub weapon: String,         // "rl", "lg", "gl", etc.
+    pub key: String,            // display name of the key
+    pub method: String,         // "quickfire" or "manual"
+    pub fire_key: Option<String>, // for manual: which key fires (usually Mouse1)
+}
+
+/// Default impulse binds on number keys (to detect legacy/unmodified binds)
+fn is_default_impulse_bind(key: &str, cmd: &str) -> bool {
+    matches!(
+        (key, cmd),
+        ("1", "impulse 1") | ("2", "impulse 2") | ("3", "impulse 3") |
+        ("4", "impulse 4") | ("5", "impulse 5") | ("6", "impulse 6") |
+        ("7", "impulse 7") | ("8", "impulse 8")
+    )
+}
+
+/// Extract weapon numbers from a command string.
+/// Handles both "impulse 7" and "weapon 7 3 2" formats.
+/// Returns the primary weapon number (first one listed).
+/// Returns None for long impulse chains (4+ numbers) — those are pack-drop/priority binds.
+fn extract_weapon_number(cmd: &str) -> Option<u32> {
+    let lower = cmd.to_lowercase();
+    for part in lower.split(';') {
+        let part = part.trim();
+        if part.starts_with("impulse ") || part.starts_with("weapon ") {
+            let after_cmd = if part.starts_with("impulse ") {
+                &part[8..]
+            } else {
+                &part[7..]
+            };
+            // Count how many numbers in the list
+            let numbers: Vec<u32> = after_cmd.trim().split_whitespace()
+                .filter_map(|n| n.parse::<u32>().ok())
+                .collect();
+            // 4+ numbers = pack-drop / best-weapon priority chain, skip
+            if numbers.len() >= 4 {
+                return None;
+            }
+            // First number is the primary weapon
+            if let Some(&num) = numbers.first() {
+                if (1..=8).contains(&num) {
+                    return Some(num);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Check if a command string contains +attack
+fn has_attack(cmd: &str) -> bool {
+    cmd.to_lowercase().split(';').any(|part| part.trim().starts_with("+attack"))
+}
+
+/// Check if a command string rebinds mouse1
+fn rebinds_mouse1(cmd: &str) -> bool {
+    let lower = cmd.to_lowercase();
+    lower.contains("bind mouse1")
+}
+
+/// Resolve a command through aliases (one level deep, then check resolved).
+/// Returns the fully resolved command string.
+fn resolve_command(cmd: &str, aliases: &HashMap<String, String>) -> String {
+    let cmd_trimmed = cmd.trim();
+    // If the command starts with + or is a known alias, resolve it
+    let alias_name = if cmd_trimmed.starts_with('+') {
+        cmd_trimmed
+    } else {
+        cmd_trimmed
+    };
+    if let Some(resolved) = aliases.get(alias_name) {
+        return resolved.clone();
+    }
+    // Try without the + prefix too
+    if cmd_trimmed.starts_with('+') {
+        if let Some(resolved) = aliases.get(&cmd_trimmed[1..]) {
+            return resolved.clone();
+        }
+    }
+    cmd.to_string()
+}
+
+/// Analyze all key bindings to extract weapon binds.
+fn analyze_weapon_binds(
+    bindings: &[(String, String)],
+    aliases: &HashMap<String, String>,
+) -> Vec<WeaponBind> {
+    let mut weapon_binds = Vec::new();
+    let mut has_custom_weapon_binds = false;
+
+    // First pass: identify all weapon-related binds
+    for (key, cmd) in bindings {
+        let key_upper = key.to_uppercase();
+
+        // Skip empty binds
+        if cmd.is_empty() || cmd == "\"\"" {
+            continue;
+        }
+
+        // Resolve through aliases (one level)
+        let resolved = resolve_command(cmd, aliases);
+
+        // Priority 1: check if this bind rebinds mouse1 to a weapon
+        // e.g. "bind mouse1 +rock; weapon 2" or "shaftbind" → "bind mouse1 +shaft"
+        if rebinds_mouse1(&resolved) || rebinds_mouse1(cmd) {
+            let check = if rebinds_mouse1(&resolved) { &resolved } else { &cmd.to_string() };
+            let lower = check.to_lowercase();
+            if let Some(pos) = lower.find("bind mouse1 ") {
+                let after = &check[pos + 12..];
+                let rebound_cmd = after.split(';').next().unwrap_or("").trim();
+                let rebound_resolved = resolve_command(rebound_cmd, aliases);
+                if let Some(wnum) = extract_weapon_number(&rebound_resolved) {
+                    if let Some(wname) = impulse_to_weapon(wnum) {
+                        has_custom_weapon_binds = true;
+                        weapon_binds.push(WeaponBind {
+                            weapon: wname.to_string(),
+                            key: format_key_name(&key_upper),
+                            method: "manual".to_string(),
+                            fire_key: Some("Mouse1".to_string()),
+                        });
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Priority 2: check if this command directly involves a weapon
+        let weapon_num = extract_weapon_number(&resolved);
+        if weapon_num.is_none() {
+            continue;
+        }
+
+        let weapon_num = weapon_num.unwrap();
+        let weapon_name = match impulse_to_weapon(weapon_num) {
+            Some(name) => name,
+            None => continue,
+        };
+
+        // Skip default impulse binds on number keys (legacy)
+        if is_default_impulse_bind(&key_upper, cmd) {
+            continue;
+        }
+
+        // Classify: quickfire vs manual
+        if has_attack(&resolved) {
+            // Has +attack in the resolved command → quickfire
+            has_custom_weapon_binds = true;
+            weapon_binds.push(WeaponBind {
+                weapon: weapon_name.to_string(),
+                key: format_key_name(&key_upper),
+                method: "quickfire".to_string(),
+                fire_key: None,
+            });
+        } else if rebinds_mouse1(&resolved) {
+            // Rebinds mouse1 but no +attack → manual select
+            has_custom_weapon_binds = true;
+            weapon_binds.push(WeaponBind {
+                weapon: weapon_name.to_string(),
+                key: format_key_name(&key_upper),
+                method: "manual".to_string(),
+                fire_key: Some("Mouse1".to_string()),
+            });
+        } else {
+            // Just impulse/weapon select, no attack, no rebind
+            // Could be legacy or a select-only bind
+            // Only include if it's NOT a default number key bind
+            let is_number_key = key_upper.len() == 1 && key_upper.chars().next().map_or(false, |c| c.is_ascii_digit());
+            if !is_number_key {
+                has_custom_weapon_binds = true;
+                weapon_binds.push(WeaponBind {
+                    weapon: weapon_name.to_string(),
+                    key: format_key_name(&key_upper),
+                    method: "manual".to_string(),
+                    fire_key: Some("Mouse1".to_string()),
+                });
+            }
+        }
+    }
+
+    // If no custom weapon binds found, include number key binds as manual
+    if !has_custom_weapon_binds {
+        for (key, cmd) in bindings {
+            let key_upper = key.to_uppercase();
+            let resolved = resolve_command(cmd, aliases);
+            if let Some(wnum) = extract_weapon_number(&resolved) {
+                if let Some(wname) = impulse_to_weapon(wnum) {
+                    weapon_binds.push(WeaponBind {
+                        weapon: wname.to_string(),
+                        key: format_key_name(&key_upper),
+                        method: "manual".to_string(),
+                        fire_key: Some("Mouse1".to_string()),
+                    });
+                }
+            }
+        }
+    }
+
+    // Deduplicate: keep only one bind per weapon (prefer quickfire over manual)
+    let mut seen = HashMap::new();
+    for wb in &weapon_binds {
+        let entry = seen.entry(wb.weapon.clone()).or_insert_with(|| wb.clone());
+        if wb.method == "quickfire" && entry.method != "quickfire" {
+            *entry = wb.clone();
+        }
+    }
+    let mut result: Vec<WeaponBind> = seen.into_values().collect();
+
+    // Sort by weapon order: rl, lg, gl, sng, ng, ssg, sg, axe
+    let order = ["rl", "lg", "gl", "sng", "ng", "ssg", "sg", "axe"];
+    result.sort_by_key(|wb| order.iter().position(|&w| w == wb.weapon).unwrap_or(99));
+
+    result
+}
+
 fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
     let bindings = parsed.bindings;
+    let aliases = parsed.aliases;
     let parsed = parsed.cvars;
     let defaults = default_cvars();
 
@@ -442,6 +700,8 @@ fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
         jump: find_bind(&bindings, "+jump"),
     };
 
+    let weapon_binds = analyze_weapon_binds(&bindings, &aliases);
+
     EzQuakeConfig {
         player_name,
         player_name_qw,
@@ -461,6 +721,7 @@ fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
         vid_displayfrequency,
         cl_maxfps,
         movement,
+        weapon_binds,
         raw_cvars: parsed,
     }
 }

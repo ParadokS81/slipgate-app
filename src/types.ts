@@ -99,6 +99,13 @@ export interface MovementKeys {
   jump: string;
 }
 
+export interface WeaponBind {
+  weapon: string;           // "rl", "lg", "gl", "sng", "ng", "ssg", "sg", "axe"
+  key: string;              // display name of the key
+  method: string;           // "quickfire" or "manual"
+  fire_key: string | null;  // for manual: which key fires (usually "Mouse1")
+}
+
 export interface EzQuakeConfig {
   player_name: string;
   player_name_qw: QwStyledChar[];
@@ -118,5 +125,6 @@ export interface EzQuakeConfig {
   vid_displayfrequency: number;
   cl_maxfps: number;
   movement: MovementKeys;
+  weapon_binds: WeaponBind[];
   raw_cvars: Record<string, string>;
 }
