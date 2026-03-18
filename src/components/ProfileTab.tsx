@@ -286,66 +286,114 @@ export default function ProfileTab(props: ProfileTabProps) {
 
             return (
               <div class="sg-input-viz">
-                {/* Row 1: Keyboard — full width */}
+                {/* Keyboard — full width */}
                 <div class="sg-input-viz-kb">
-                  <KeyboardLayout movement={m} />
-                  <div class="sg-input-viz-desc">
-                    {kbBinds.length > 0 && (
-                      <span class="sg-bind-move">
-                        {kbBinds.map(b => `${b.arrow}${b.key}`).join("  ")}
-                      </span>
-                    )}
-                    {kbJump && <span class="sg-bind-jump">⤴ {kbJump}</span>}
+                  <KeyboardLayout movement={m} keyboardName={keyboardDisplayName()} />
+                </div>
+
+                {/* Bind descriptions — compact row under keyboard */}
+                <div class="sg-bind-row">
+                  <div class="sg-bind-row-group">
+                    <span class="sg-bind-row-label">move</span>
+                    <span class="sg-bind-move">
+                      {kbBinds.map(b => `${b.arrow}${b.key}`).join("  ")}
+                      {msBinds.map(b => `${b.arrow}${b.key}`).join("  ")}
+                    </span>
+                  </div>
+                  <div class="sg-bind-row-group">
+                    <span class="sg-bind-row-label">jump</span>
+                    <span class="sg-bind-jump">
+                      {kbJump || msJump || "--"}
+                    </span>
                   </div>
                 </div>
 
-                {/* Row 2: Mouse on mousepad + sensitivity summary */}
-                <div class="sg-input-viz-ms">
-                  <MouseLayout
-                    movement={m}
-                    mouseName={mouseDisplayName()}
-                    mouseWeight={selectedMouseEntry()?.weight}
-                    mouseWireless={selectedMouseEntry()?.wireless}
-                    mouseImage={selectedMouseEntry()?.image}
-                    mousepadName={mousepadDisplayName()}
-                    mousepadSpeed={selectedPadEntry()?.speed}
-                    mousepadMaterial={selectedPadEntry()?.surface_material}
-                    mousepadFirmness={selectedPadEntry()?.firmness}
-                  />
-                  <div class="sg-input-viz-desc sg-input-viz-desc-ms">
-                    {msBinds.length > 0 && (
-                      <span class="sg-bind-move">
-                        {msBinds.map(b => `${b.arrow}${b.key}`).join("  ")}
-                      </span>
-                    )}
-                    {msJump && <span class="sg-bind-jump">jump: {msJump}</span>}
-                    <span class={cm360() ? "sg-bind-sens" : "sg-bind-sens sg-dim"}>
-                      {cm360() ? `${cm360()} cm/360` : "Set DPI + sens"}
-                    </span>
+                {/* 4-card gear grid: Mouse | Mousepad | Grip | Movement */}
+                <div class="sg-gear-grid">
+                  {/* Mouse card — product photo */}
+                  <div class="sg-gear-card-wrapper">
+                    <MouseLayout
+                      movement={m}
+                      mouseImage={selectedMouseEntry()?.image}
+                      mouseName={mouseDisplayName()}
+                    />
                   </div>
+
+                  {/* Mousepad card — show specs inside */}
+                  <div class="sg-gear-card-wrapper">
+                    <div class="sg-gear-card sg-gear-card-pad">
+                      <div class="sg-gear-card-pad-inner">
+                        <span class="sg-gear-card-pad-brand">{mousepadDisplayName() || "Mousepad"}</span>
+                        <div class="sg-gear-card-pad-tags">
+                          {[
+                            selectedPadEntry()?.speed,
+                            selectedPadEntry()?.firmness,
+                            selectedPadEntry()?.surface_material,
+                          ].filter(Boolean).map(tag => (
+                            <span class="sg-gear-card-pad-tag">{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grip style card — image has its own label */}
+                  <div class="sg-gear-card-wrapper">
+                    <div class="sg-gear-card">
+                      <img
+                        src={`/movement-grip/grip-${props.profile ? getPrimarySetup(props.profile).hardware.grip_style || "claw" : "claw"}.png`}
+                        alt="Grip style"
+                        class="sg-gear-card-illustration"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Movement style card — image has its own label */}
+                  <div class="sg-gear-card-wrapper">
+                    <div class="sg-gear-card">
+                      <img
+                        src={`/movement-grip/movement-${props.profile ? getPrimarySetup(props.profile).hardware.aim_style || "wrist" : "wrist"}.png`}
+                        alt="Aim style"
+                        class="sg-gear-card-illustration"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mouse data row — brand/model, specs, sensitivity */}
+                <div class="sg-mouse-data-row">
+                  {mouseDisplayName() && (
+                    <span class="sg-mouse-data-name">{mouseDisplayName()}</span>
+                  )}
+                  {selectedMouseEntry()?.weight && (
+                    <span class="sg-mouse-data-tag">{selectedMouseEntry()!.weight}g</span>
+                  )}
+                  {selectedMouseEntry()?.wireless != null && (
+                    <span class="sg-mouse-data-tag">{selectedMouseEntry()!.wireless ? "wireless" : "wired"}</span>
+                  )}
+                  {cm360() && (
+                    <span class="sg-mouse-data-tag sg-mouse-data-highlight">{cm360()} cm/360</span>
+                  )}
+                  {invertY() !== null && (
+                    <span class="sg-sens-tag" classList={{ "sg-sens-active": invertY()! }}>
+                      invert {invertY() ? "ON" : "OFF"}
+                    </span>
+                  )}
+                  {hasAccel() !== null && (
+                    <span class="sg-sens-tag" classList={{ "sg-sens-active": hasAccel()! }}>
+                      accel {hasAccel() ? "ON" : "OFF"}
+                    </span>
+                  )}
+                  {mPitchDisplay() && (
+                    <span class="sg-sens-tag sg-sens-active">
+                      m_pitch {mPitchDisplay()}
+                    </span>
+                  )}
                 </div>
               </div>
             );
           })()}
 
-          {/* Sensitivity indicators row */}
-          <div class="sg-sens-indicators">
-            {invertY() !== null && (
-              <span class="sg-sens-tag" classList={{ "sg-sens-active": invertY()! }}>
-                invert Y {invertY() ? "ON" : "OFF"}
-              </span>
-            )}
-            {hasAccel() !== null && (
-              <span class="sg-sens-tag" classList={{ "sg-sens-active": hasAccel()! }}>
-                accel {hasAccel() ? "ON" : "OFF"}
-              </span>
-            )}
-            {mPitchDisplay() && (
-              <span class="sg-sens-tag sg-sens-active" title="Vertical sensitivity differs from horizontal (m_pitch ≠ m_yaw)">
-                m_pitch {mPitchDisplay()}
-              </span>
-            )}
-          </div>
         </Show>
       </div>
 

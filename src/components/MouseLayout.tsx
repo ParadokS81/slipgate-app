@@ -8,31 +8,25 @@ function getMouseButtonId(key: string): string | null {
   const map: Record<string, string> = {
     Mouse1: "mouse1",
     Mouse2: "mouse2",
-    Mouse3: "mouse3",    // middle/scroll click
-    Mouse4: "mouse4",    // thumb back
-    Mouse5: "mouse5",    // thumb forward
+    Mouse3: "mouse3",
+    Mouse4: "mouse4",
+    Mouse5: "mouse5",
     MWheelUp: "mwheel",
     MWheelDown: "mwheel",
   };
   return map[key] ?? null;
 }
 
-interface MouseLayoutProps {
+interface MouseCardProps {
   movement: MovementKeys;
+  mouseImage?: string | null;
   mouseName?: string | null;
-  mouseWeight?: number | null;
-  mouseWireless?: boolean | null;
-  mouseImage?: string | null;       // EloShapes PNG filename
-  mousepadName?: string | null;
-  mousepadSpeed?: string | null;
-  mousepadMaterial?: string | null;
-  mousepadFirmness?: string | null;
 }
 
-/** Generic mouse SVG fallback — shown when no product photo available */
+/** Generic mouse SVG fallback */
 function MouseSvgFallback(props: { btnClass: (id: string) => string }) {
   return (
-    <svg viewBox="0 0 100 160" class="sg-mouse-svg" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 100 160" class="sg-mouse-svg-fallback" xmlns="http://www.w3.org/2000/svg">
       <path
         d="M50 8 C35 8 22 18 18 40 C14 62 13 95 16 120 C19 140 32 152 50 155 C68 152 81 140 84 120 C87 95 86 62 82 40 C78 18 65 8 50 8 Z"
         class="sg-mouse-body"
@@ -46,7 +40,8 @@ function MouseSvgFallback(props: { btnClass: (id: string) => string }) {
   );
 }
 
-export default function MouseLayout(props: MouseLayoutProps) {
+/** Mouse photo card — shows product photo with SVG fallback */
+export default function MouseLayout(props: MouseCardProps) {
   const [imageLoaded, setImageLoaded] = createSignal(false);
   const [imageError, setImageError] = createSignal(false);
 
@@ -74,65 +69,25 @@ export default function MouseLayout(props: MouseLayoutProps) {
     return ELOSHAPES_CDN + file;
   };
 
-  // Show product photo if available and loaded, otherwise SVG fallback
   const showPhoto = () => imageUrl() && imageLoaded() && !imageError();
 
-  const padTags = () => {
-    const parts: string[] = [];
-    if (props.mousepadSpeed) parts.push(props.mousepadSpeed);
-    if (props.mousepadMaterial) parts.push(props.mousepadMaterial);
-    if (props.mousepadFirmness) parts.push(props.mousepadFirmness);
-    return parts.join(" · ");
-  };
-
-  const mouseTags = () => {
-    const parts: string[] = [];
-    if (props.mouseWeight) parts.push(`${props.mouseWeight}g`);
-    if (props.mouseWireless === true) parts.push("wireless");
-    else if (props.mouseWireless === false) parts.push("wired");
-    return parts.join(" · ");
-  };
-
   return (
-    <div class="sg-mouse-on-pad">
-      <div class="sg-mousepad-surface">
-        {/* Product photo — hidden until loaded */}
+    <div class="sg-gear-card">
+      <div class="sg-gear-card-img">
         <Show when={imageUrl()}>
           <img
             src={imageUrl()!}
             alt={props.mouseName ?? "Mouse"}
-            class="sg-mouse-photo"
-            classList={{ "sg-mouse-photo-loaded": imageLoaded() }}
+            class="sg-gear-card-photo"
+            classList={{ "sg-gear-card-photo-loaded": imageLoaded() }}
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageError(true)}
           />
         </Show>
-
-        {/* SVG fallback — shown when no photo or photo failed */}
         <Show when={!showPhoto()}>
           <MouseSvgFallback btnClass={btnClass} />
         </Show>
-
-        {/* Mouse name + tags inside the pad */}
-        <Show when={props.mouseName}>
-          <div class="sg-pad-mouse-label">
-            <span class="sg-pad-mouse-name">{props.mouseName}</span>
-            <Show when={mouseTags()}>
-              <span class="sg-pad-mouse-tags">{mouseTags()}</span>
-            </Show>
-          </div>
-        </Show>
       </div>
-
-      {/* Mousepad name + specs below the surface */}
-      <Show when={props.mousepadName}>
-        <div class="sg-pad-label">
-          <span class="sg-pad-name">{props.mousepadName}</span>
-          <Show when={padTags()}>
-            <span class="sg-pad-tags">{padTags()}</span>
-          </Show>
-        </div>
-      </Show>
     </div>
   );
 }

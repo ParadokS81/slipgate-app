@@ -20,6 +20,8 @@ export interface SetupHardware {
   mouse_model: GearSelection | null;
   mousepad_model: GearSelection | null;
   keyboard_name: string | null;
+  grip_style: string | null;            // palm, claw, fingertip
+  aim_style: string | null;             // wrist, mixed, arm
   display_res_override: string | null;   // null = use auto-detected
   display_hz_override: number | null;    // null = use auto-detected
   audio_out_override: string | null;     // null = use auto-detected
@@ -77,6 +79,8 @@ const DEFAULT_HARDWARE: SetupHardware = {
   mouse_model: null,
   mousepad_model: null,
   keyboard_name: null,
+  grip_style: null,
+  aim_style: null,
   display_res_override: null,
   display_hz_override: null,
   audio_out_override: null,
