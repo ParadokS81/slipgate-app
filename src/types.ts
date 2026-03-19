@@ -44,6 +44,7 @@ export interface MouseEntry {
   length: number | null;         // mm
   width: number | null;          // mm
   height: number | null;         // mm
+  image: string | null;          // EloShapes PNG filename e.g. "zowie-ec2-wireless.png"
 }
 
 export interface MousepadSize {
@@ -98,6 +99,13 @@ export interface MovementKeys {
   jump: string;
 }
 
+export interface WeaponBind {
+  weapon: string;           // "rl", "lg", "gl", "sng", "ng", "ssg", "sg", "axe"
+  key: string;              // display name of the key
+  method: string;           // "quickfire" or "manual"
+  fire_key: string | null;  // for manual: which key fires (usually "Mouse1")
+}
+
 export interface EzQuakeConfig {
   player_name: string;
   player_name_qw: QwStyledChar[];
@@ -106,6 +114,7 @@ export interface EzQuakeConfig {
   topcolor: number;
   bottomcolor: number;
   sensitivity: number;
+  lg_sensitivity: number | null;  // different sensitivity for LG, if detected
   m_yaw: number;
   m_pitch: number;
   m_accel: number;
@@ -117,5 +126,6 @@ export interface EzQuakeConfig {
   vid_displayfrequency: number;
   cl_maxfps: number;
   movement: MovementKeys;
+  weapon_binds: WeaponBind[];
   raw_cvars: Record<string, string>;
 }

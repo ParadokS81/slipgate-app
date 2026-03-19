@@ -588,9 +588,7 @@ input[type="number"] {
    ============================================================ */
 
 .sg-keyboard-container {
-  flex: 1;
-  min-width: 0;
-  max-width: 220px;
+  width: 100%;
 }
 
 .sg-keyboard-container svg {
@@ -621,7 +619,7 @@ input[type="number"] {
 /* Key labels */
 .sg-kb-label {
   fill: var(--sg-text-dim);
-  font-size: 11px;
+  font-size: 10px;
   font-family: "Geist", system-ui, sans-serif;
   font-weight: 500;
   text-anchor: middle;
@@ -638,84 +636,106 @@ input[type="number"] {
   font-weight: 700;
 }
 
+/* Keyboard name badge in the F-row top-right */
+.sg-kb-name-bg {
+  fill: oklch(0.2 0.01 250);
+  stroke: oklch(0.3 0.01 250);
+  stroke-width: 1;
+}
+
+.sg-kb-name-label {
+  fill: oklch(0.6 0.01 250);
+  font-size: 9px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
 /* ============================================================
-   Mouse-on-mousepad layout — mouse SVG on a pad surface
+   Mouse-on-mousepad layout — wide pad surface with mouse + data
    ============================================================ */
 
-.sg-mouse-on-pad {
+.sg-pad-container {
+  width: 100%;
+}
+
+/* The mousepad surface — full width, horizontal layout */
+.sg-pad-surface {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--sg-grad-dark) 60%, var(--sg-stat-bg));
+  border: 1px solid var(--sg-stat-border);
+  min-height: 180px;
+}
+
+/* Left: mouse image area */
+.sg-pad-mouse-area {
   flex-shrink: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  width: 170px;
+  height: 170px;
 }
 
-/* Mousepad surface — rounded rectangle background */
-.sg-mousepad-surface {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px 20px 6px;
+.sg-pad-mouse-photo {
+  max-width: 160px;
+  max-height: 160px;
+  object-fit: contain;
   border-radius: 6px;
-  background: color-mix(in oklch, var(--sg-grad-dark) 80%, var(--sg-stat-bg));
-  border: 1px solid var(--sg-stat-border);
-  min-width: 130px;
+  opacity: 0;
+  transition: opacity 0.3s ease;
 }
 
-/* Mouse SVG inside the pad */
-.sg-mouse-svg {
-  width: 64px;
+.sg-pad-mouse-photo-loaded {
+  opacity: 1;
+}
+
+.sg-mouse-svg-fallback {
+  width: 70px;
   height: auto;
-  display: block;
 }
 
-/* Mouse name + tags inside the pad, below the SVG */
-.sg-pad-mouse-label {
+/* Right: stacked info groups */
+.sg-pad-info {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 1px;
-  margin-top: 4px;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 100px;
+  padding: 4px 0;
 }
 
-.sg-pad-mouse-name {
-  font-size: 9px;
+.sg-pad-info-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sg-pad-info-name {
+  font-size: 13px;
   font-weight: 600;
   color: var(--sg-text-dim);
-  text-align: center;
   line-height: 1.2;
 }
 
-.sg-pad-mouse-tags {
-  font-size: 8px;
+.sg-pad-info-tags {
+  font-size: 11px;
   font-weight: 500;
   color: var(--sg-section-label);
-  text-align: center;
+  line-height: 1.3;
 }
 
-/* Mousepad name + tags below the surface */
-.sg-pad-label {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1px;
-}
-
-.sg-pad-name {
-  font-size: 9px;
-  font-weight: 600;
+/* Mousepad info group — slightly different styling */
+.sg-pad-info-pad .sg-pad-info-name {
   color: var(--sg-section-label);
-  text-align: center;
-  line-height: 1.2;
 }
 
-.sg-pad-tags {
-  font-size: 8px;
-  font-weight: 500;
-  color: var(--sg-section-label);
-  opacity: 0.65;
-  text-align: center;
+.sg-pad-info-pad .sg-pad-info-tags {
+  opacity: 0.7;
 }
 
 .sg-mouse-body {
@@ -749,25 +769,23 @@ input[type="number"] {
 
 .sg-input-viz {
   display: flex;
-  align-items: flex-start;
-  gap: 20px;
+  flex-direction: column;
+  gap: 12px;
   padding: 8px 24px 12px;
 }
 
-.sg-input-viz-col {
+/* Keyboard row — full width */
+.sg-input-viz-kb {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.sg-input-viz-kb {
-  flex: 1;
-  min-width: 0;
-}
-
+/* Mouse + mousepad row — horizontal */
 .sg-input-viz-ms {
-  flex-shrink: 0;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
 }
 
 .sg-input-viz-desc {
@@ -793,16 +811,184 @@ input[type="number"] {
   font-weight: 500;
 }
 
-.sg-input-viz-ms .sg-input-viz-desc {
-  text-align: center;
+/* Bind description row — compact horizontal strip under keyboard */
+.sg-bind-row {
+  display: flex;
+  gap: 20px;
+  padding: 0 4px;
+  flex-wrap: wrap;
 }
 
-/* Sensitivity indicator tags (invert/accel/m_pitch) */
-.sg-sens-indicators {
+.sg-bind-row-group {
   display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sg-bind-row-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--sg-section-label);
+  opacity: 0.6;
+}
+
+/* 4-card gear grid: mouse | mousepad | grip | movement */
+.sg-gear-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  padding: 4px 24px 0;
+}
+
+.sg-gear-card-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sg-gear-card {
+  border-radius: 8px;
+  overflow: hidden;
+  background: oklch(0.18 0 0);
+  aspect-ratio: 3 / 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Mouse photo inside card — crop white edges */
+.sg-gear-card-img {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.sg-gear-card-photo {
+  width: 120%;
+  height: 120%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.sg-gear-card-photo-loaded {
+  opacity: 1;
+}
+
+.sg-gear-card .sg-mouse-svg-fallback {
+  width: 60%;
+  height: auto;
+}
+
+/* Mousepad card — styled rectangle with specs */
+.sg-gear-card-pad {
+  background: oklch(0.15 0.005 250);
+  padding: 10px;
+}
+
+.sg-gear-card-pad-inner {
+  width: 100%;
+  height: 100%;
+  border: 1px solid oklch(0.3 0.01 250);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+}
+
+.sg-gear-card-pad-brand {
+  font-size: 11px;
+  font-weight: 600;
+  color: oklch(0.6 0.01 250);
+  text-align: center;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.sg-gear-card-pad-tags {
+  display: flex;
   flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+}
+
+.sg-gear-card-pad-tag {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: oklch(0.22 0.01 250);
+  color: oklch(0.55 0.01 250);
+  text-transform: capitalize;
+}
+
+/* Grip/movement illustration — contain, don't crop */
+.sg-gear-card-illustration {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* Labels under each card */
+.sg-gear-card-label {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 2px;
+}
+
+.sg-gear-card-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--sg-text-bright);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sg-gear-card-tags {
+  font-size: 10px;
+  color: var(--sg-section-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mouse data row — all mouse info in one line */
+.sg-mouse-data-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 4px;
+  flex-wrap: wrap;
+}
+
+.sg-mouse-data-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sg-text-bright);
+}
+
+.sg-mouse-data-tag {
+  font-size: 11px;
+  color: var(--sg-section-label);
+}
+
+.sg-mouse-data-highlight {
+  color: var(--sg-text-bright);
+  font-weight: 600;
+}
+
+/* Push keyboard name to right side of bind row */
+.sg-bind-row-right {
+  margin-left: auto;
 }
 
 .sg-sens-tag {

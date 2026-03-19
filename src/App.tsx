@@ -65,6 +65,13 @@ function App() {
           configName: cfgName,
         });
         setEzConfig(cfg);
+        if (cfg.weapon_binds?.length) {
+          console.log("=== WEAPON BINDS ===");
+          for (const wb of cfg.weapon_binds) {
+            const method = wb.method === "quickfire" ? "⚡ quickfire" : `🎯 manual → ${wb.fire_key}`;
+            console.log(`  ${wb.weapon.toUpperCase().padEnd(4)} ${wb.key.padEnd(10)} ${method}`);
+          }
+        }
       }
     } catch (e) {
       console.error("Failed to auto-load config:", e);
