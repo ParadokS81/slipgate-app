@@ -1129,6 +1129,38 @@ input[type="number"] {
   text-decoration: underline;
 }
 
+/* Updates ecosystem tabs */
+
+.sg-updates-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--sg-stat-border);
+  margin: 0 -12px;
+  padding: 0 12px;
+}
+
+.sg-updates-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: "Geist", system-ui, sans-serif;
+  color: var(--sg-section-label);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.sg-updates-tab:hover {
+  color: var(--sg-text-dim);
+}
+
+.sg-updates-tab-active {
+  color: var(--sg-text-bright);
+  border-bottom-color: oklch(var(--p));
+}
+
 /* Older (already installed or past) versions — dimmed */
 
 .sg-changelog-older .sg-changelog-header {

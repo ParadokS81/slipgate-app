@@ -39,10 +39,31 @@ pub const UNEZQUAKE: ClientDef = ClientDef {
     snapshot_url: None,
 };
 
+// Read-only projects — changelog browsing only, no install
+pub const KTX: ClientDef = ClientDef {
+    name: "KTX",
+    github_owner: "QW-Group",
+    github_repo: "ktx",
+    windows_asset: "",
+    exe_name: "",
+    snapshot_url: None,
+};
+
+pub const MVDSV: ClientDef = ClientDef {
+    name: "MVDSV",
+    github_owner: "QW-Group",
+    github_repo: "mvdsv",
+    windows_asset: "",
+    exe_name: "",
+    snapshot_url: None,
+};
+
 fn get_client_def(name: &str) -> Result<&'static ClientDef, String> {
     match name.to_lowercase().as_str() {
         "ezquake" => Ok(&EZQUAKE),
         "unezquake" => Ok(&UNEZQUAKE),
+        "ktx" => Ok(&KTX),
+        "mvdsv" => Ok(&MVDSV),
         _ => Err(format!("Unknown client: {}", name)),
     }
 }

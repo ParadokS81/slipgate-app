@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ArrowLeft, HardDrive, Crosshair, Monitor, Rocket, Download } from "lucide-solid";
-import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo, UpdateCheckResult, UpdateProgress, UpdateResult } from "../types";
+import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo, UpdateCheckResult, UpdateProgress, UpdateResult, ReleaseNote } from "../types";
 import type { ProfileData } from "../store";
 import { getPrimarySetup } from "../store";
 import Changelog from "./Changelog";
@@ -35,12 +35,18 @@ export default function ClientsTab(props: ClientsTabProps) {
   const [error, setError] = createSignal("");
   const [connectAddress, setConnectAddress] = createSignal("");
 
-  // Update state
+  // Update state — ezQuake
   const [updateCheck, setUpdateCheck] = createSignal<UpdateCheckResult | null>(null);
   const [updateProgress, setUpdateProgress] = createSignal<UpdateProgress | null>(null);
   const [updateResult, setUpdateResult] = createSignal<UpdateResult | null>(null);
   const [isChecking, setIsChecking] = createSignal(false);
   const [isUpdating, setIsUpdating] = createSignal(false);
+
+  // Ecosystem tabs — read-only changelogs for KTX / MVDSV
+  const [updatesTab, setUpdatesTab] = createSignal<"ezQuake" | "KTX" | "MVDSV">("ezQuake");
+  const [ktxNotes, setKtxNotes] = createSignal<ReleaseNote[]>([]);
+  const [mvdsvNotes, setMvdsvNotes] = createSignal<ReleaseNote[]>([]);
+  const [isLoadingEcosystem, setIsLoadingEcosystem] = createSignal(false);
 
   // Listen for progress events from Rust backend
   let unlistenProgress: (() => void) | null = null;
@@ -152,12 +158,25 @@ export default function ClientsTab(props: ClientsTabProps) {
     setUpdateResult(null);
     setError("");
     try {
-      const result = await invoke<UpdateCheckResult>("check_for_update", {
-        exePath: path,
-        clientName: "ezQuake",
-        channel: "stable",
-      });
-      setUpdateCheck(result);
+      // Fetch all three in parallel
+      const [ezResult, ktxResult, mvdsvResult] = await Promise.all([
+        invoke<UpdateCheckResult>("check_for_update", {
+          exePath: path,
+          clientName: "ezQuake",
+          channel: "stable",
+        }),
+        invoke<ReleaseNote[]>("get_release_changelog", {
+          clientName: "KTX",
+          fromVersion: null,
+        }).catch(() => [] as ReleaseNote[]),
+        invoke<ReleaseNote[]>("get_release_changelog", {
+          clientName: "MVDSV",
+          fromVersion: null,
+        }).catch(() => [] as ReleaseNote[]),
+      ]);
+      setUpdateCheck(ezResult);
+      setKtxNotes(ktxResult);
+      setMvdsvNotes(mvdsvResult);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -357,97 +376,135 @@ export default function ClientsTab(props: ClientsTabProps) {
               </button>
             </div>
 
-            {/* Current version */}
-            <Row
-              label="Current"
-              value={(() => {
-                const v = parseVersion(installation()?.version);
-                if (!v.semver) return "Unknown";
-                return v.build ? `${v.semver} (build ${v.build})` : v.semver;
-              })()}
-            />
+            {/* Ecosystem tabs */}
+            <div class="sg-updates-tabs">
+              <For each={["ezQuake", "KTX", "MVDSV"] as const}>
+                {(tab) => (
+                  <button
+                    class="sg-updates-tab"
+                    classList={{ "sg-updates-tab-active": updatesTab() === tab }}
+                    onClick={() => setUpdatesTab(tab)}
+                  >
+                    {tab}
+                  </button>
+                )}
+              </For>
+            </div>
 
-            {/* Changelog — stable + snapshot entries */}
-            <Show when={updateCheck()}>
-              <Show when={updateCheck()!.release_notes.length > 0 || updateCheck()!.snapshot}>
-                <Changelog notes={updateCheck()!.release_notes} snapshot={updateCheck()!.snapshot} currentVersion={updateCheck()!.current_version} />
-              </Show>
+            {/* ─── ezQuake tab ─── */}
+            <Show when={updatesTab() === "ezQuake"}>
+              <Row
+                label="Current"
+                value={(() => {
+                  const v = parseVersion(installation()?.version);
+                  if (!v.semver) return "Unknown";
+                  return v.build ? `${v.semver} (build ${v.build})` : v.semver;
+                })()}
+              />
 
-              <Show when={!updateCheck()!.update_available && !updateCheck()!.snapshot?.newer_than_stable}>
-                <div style={{ padding: "8px 0", "font-size": "12px", color: "var(--sg-section-label)", "text-align": "center" }}>
-                  You're on the latest stable version
-                </div>
-              </Show>
-            </Show>
+              <Show when={updateCheck()}>
+                <Show when={updateCheck()!.release_notes.length > 0 || updateCheck()!.snapshot}>
+                  <Changelog notes={updateCheck()!.release_notes} snapshot={updateCheck()!.snapshot} currentVersion={updateCheck()!.current_version} />
+                </Show>
 
-            {/* Progress bar during update */}
-            <Show when={isUpdating() && updateProgress()}>
-              <div style={{ margin: "8px 0" }}>
-                <Show when={updateProgress()!.percent !== null}>
-                  <div style={{
-                    height: "4px",
-                    "border-radius": "2px",
-                    background: "var(--sg-stat-border)",
-                    overflow: "hidden",
-                    "margin-bottom": "4px",
-                  }}>
-                    <div style={{
-                      height: "100%",
-                      background: "oklch(var(--p))",
-                      "border-radius": "2px",
-                      transition: "width 0.3s ease",
-                      width: `${updateProgress()!.percent}%`,
-                    }} />
+                <Show when={!updateCheck()!.update_available && !updateCheck()!.snapshot?.newer_than_stable}>
+                  <div style={{ padding: "8px 0", "font-size": "12px", color: "var(--sg-section-label)", "text-align": "center" }}>
+                    You're on the latest stable version
                   </div>
                 </Show>
-                <div style={{ "font-size": "11px", color: "var(--sg-section-label)" }}>
-                  {updateProgress()!.message}
-                </div>
-              </div>
-            </Show>
+              </Show>
 
-            {/* Update result */}
-            <Show when={updateResult()}>
-              <div style={{
-                margin: "8px 0",
-                "font-size": "12px",
-                color: updateResult()!.success ? "oklch(var(--su))" : "#f87171",
-              }}>
-                <Show when={updateResult()!.success}>
-                  Updated to {updateResult()!.new_version}
-                  <Show when={updateResult()!.backup_path}>
-                    {" "}— previous saved as{" "}
-                    <span style={{ opacity: 0.7 }}>
-                      {updateResult()!.backup_path!.split(/[/\\]/).pop()}
-                    </span>
+              {/* Progress bar */}
+              <Show when={isUpdating() && updateProgress()}>
+                <div style={{ margin: "8px 0" }}>
+                  <Show when={updateProgress()!.percent !== null}>
+                    <div style={{
+                      height: "4px",
+                      "border-radius": "2px",
+                      background: "var(--sg-stat-border)",
+                      overflow: "hidden",
+                      "margin-bottom": "4px",
+                    }}>
+                      <div style={{
+                        height: "100%",
+                        background: "oklch(var(--p))",
+                        "border-radius": "2px",
+                        transition: "width 0.3s ease",
+                        width: `${updateProgress()!.percent}%`,
+                      }} />
+                    </div>
                   </Show>
-                </Show>
-                <Show when={!updateResult()!.success}>
-                  Update failed: {updateResult()!.error}
-                </Show>
-              </div>
+                  <div style={{ "font-size": "11px", color: "var(--sg-section-label)" }}>
+                    {updateProgress()!.message}
+                  </div>
+                </div>
+              </Show>
+
+              {/* Update result */}
+              <Show when={updateResult()}>
+                <div style={{
+                  margin: "8px 0",
+                  "font-size": "12px",
+                  color: updateResult()!.success ? "oklch(var(--su))" : "#f87171",
+                }}>
+                  <Show when={updateResult()!.success}>
+                    Updated to {updateResult()!.new_version}
+                    <Show when={updateResult()!.backup_path}>
+                      {" "}— previous saved as{" "}
+                      <span style={{ opacity: 0.7 }}>
+                        {updateResult()!.backup_path!.split(/[/\\]/).pop()}
+                      </span>
+                    </Show>
+                  </Show>
+                  <Show when={!updateResult()!.success}>
+                    Update failed: {updateResult()!.error}
+                  </Show>
+                </div>
+              </Show>
+
+              {/* Dual update buttons */}
+              <Show when={!isUpdating() && !updateResult()?.success && updateCheck()}>
+                <div style={{ display: "flex", "justify-content": "center", gap: "10px", padding: "4px 0" }}>
+                  <Show when={updateCheck()!.update_available}>
+                    <button
+                      class="sg-launch-btn sg-launch-btn-primary"
+                      onClick={() => performUpdate("stable")}
+                    >
+                      Update to {updateCheck()!.latest_version}
+                    </button>
+                  </Show>
+                  <Show when={updateCheck()!.snapshot?.available}>
+                    <button
+                      class="sg-launch-btn sg-launch-btn-snapshot"
+                      onClick={() => performUpdate("snapshot")}
+                    >
+                      Snapshot {updateCheck()!.snapshot!.commit}
+                    </button>
+                  </Show>
+                </div>
+              </Show>
             </Show>
 
-            {/* Dual update buttons */}
-            <Show when={!isUpdating() && !updateResult()?.success && updateCheck()}>
-              <div style={{ display: "flex", "justify-content": "center", gap: "10px", padding: "4px 0" }}>
-                <Show when={updateCheck()!.update_available}>
-                  <button
-                    class="sg-launch-btn sg-launch-btn-primary"
-                    onClick={() => performUpdate("stable")}
-                  >
-                    Update to {updateCheck()!.latest_version}
-                  </button>
-                </Show>
-                <Show when={updateCheck()!.snapshot?.available}>
-                  <button
-                    class="sg-launch-btn sg-launch-btn-snapshot"
-                    onClick={() => performUpdate("snapshot")}
-                  >
-                    Snapshot {updateCheck()!.snapshot!.commit}
-                  </button>
-                </Show>
-              </div>
+            {/* ─── KTX tab ─── */}
+            <Show when={updatesTab() === "KTX"}>
+              <Show when={ktxNotes().length > 0} fallback={
+                <div style={{ padding: "12px 0", "font-size": "12px", color: "var(--sg-section-label)", "text-align": "center" }}>
+                  Click "Check Now" to load KTX changelogs
+                </div>
+              }>
+                <Changelog notes={ktxNotes()} />
+              </Show>
+            </Show>
+
+            {/* ─── MVDSV tab ─── */}
+            <Show when={updatesTab() === "MVDSV"}>
+              <Show when={mvdsvNotes().length > 0} fallback={
+                <div style={{ padding: "12px 0", "font-size": "12px", color: "var(--sg-section-label)", "text-align": "center" }}>
+                  Click "Check Now" to load MVDSV changelogs
+                </div>
+              }>
+                <Changelog notes={mvdsvNotes()} />
+              </Show>
             </Show>
           </div>
         </Show>
