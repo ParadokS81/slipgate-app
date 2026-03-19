@@ -35,11 +35,12 @@ fn default_cvars() -> HashMap<&'static str, &'static str> {
     ])
 }
 
-/// Parsed config data — cvars, key bindings, and aliases.
+/// Parsed config data — cvars, key bindings, aliases, and exec references.
 struct ParsedConfig {
     cvars: HashMap<String, String>,
     bindings: Vec<(String, String)>,          // ordered list of (key, command)
     aliases: HashMap<String, String>,         // alias name → command string
+    exec_refs: Vec<String>,                   // referenced config files (from exec and cl_onload)
 }
 
 /// Parse an ezQuake config file into cvars and key bindings.
@@ -47,10 +48,11 @@ fn parse_config(content: &str) -> ParsedConfig {
     let mut cvars = HashMap::new();
     let mut bindings = Vec::new();
     let mut aliases = HashMap::new();
+    let mut exec_refs = Vec::new();
 
     let skip_commands = [
         "unbind", "unbindall", "unaliasall",
-        "exec", "set", "tp_pickup", "tp_took", "tp_point",
+        "set", "tp_pickup", "tp_took", "tp_point",
         "filter", "mapgroup", "skygroup", "floodprot",
         "hud_recalculate", "sb_sourceunmarkall", "sb_sourcemark",
     ];
@@ -108,6 +110,17 @@ fn parse_config(content: &str) -> ParsedConfig {
             continue;
         }
 
+        // Parse exec lines: exec "path/to/config.cfg"
+        if key_lower == "exec" {
+            if let Some(rest) = parts.next() {
+                let path = rest.trim().trim_matches('"');
+                if !path.is_empty() {
+                    exec_refs.push(path.to_string());
+                }
+            }
+            continue;
+        }
+
         if skip_commands.iter().any(|&cmd| key_lower == cmd) {
             continue;
         }
@@ -123,7 +136,20 @@ fn parse_config(content: &str) -> ParsedConfig {
         }
     }
 
-    ParsedConfig { cvars, bindings, aliases }
+    // Also extract exec refs from cl_onload (e.g. "exec configs/tp.cfg; exec configs/servers.cfg")
+    if let Some(onload) = cvars.get("cl_onload") {
+        for part in onload.split(';') {
+            let part = part.trim();
+            if part.starts_with("exec ") {
+                let path = part[5..].trim().trim_matches('"');
+                if !path.is_empty() {
+                    exec_refs.push(path.to_string());
+                }
+            }
+        }
+    }
+
+    ParsedConfig { cvars, bindings, aliases, exec_refs }
 }
 
 // ============================================================
@@ -530,6 +556,7 @@ fn analyze_weapon_binds(
 
         // Priority 1: check if this bind rebinds mouse1 to a weapon
         // e.g. "bind mouse1 +rock; weapon 2" or "shaftbind" → "bind mouse1 +shaft"
+        // But if the resolved command ALSO has +attack, it's quickfire (e.g. +boom = "weapon 2; +attack; bind mouse1 +boom")
         if rebinds_mouse1(&resolved) || rebinds_mouse1(cmd) {
             let check = if rebinds_mouse1(&resolved) { &resolved } else { &cmd.to_string() };
             let lower = check.to_lowercase();
@@ -539,12 +566,29 @@ fn analyze_weapon_binds(
                 let rebound_resolved = resolve_command(rebound_cmd, aliases);
                 if let Some(wnum) = extract_weapon_number(&rebound_resolved) {
                     if let Some(wname) = impulse_to_weapon(wnum) {
+                        // If the resolved alias also fires (+attack), it's quickfire
+                        let is_quickfire = has_attack(&resolved);
                         has_custom_weapon_binds = true;
                         weapon_binds.push(WeaponBind {
                             weapon: wname.to_string(),
                             key: format_key_name(&key_upper),
-                            method: "manual".to_string(),
-                            fire_key: Some("Mouse1".to_string()),
+                            method: if is_quickfire { "quickfire".to_string() } else { "manual".to_string() },
+                            fire_key: if is_quickfire { None } else { Some("Mouse1".to_string()) },
+                        });
+                    }
+                }
+                // Also check for a direct weapon in the resolved command
+                // e.g. +boom resolves to "weapon 2; +attack; bind mouse1 +boom"
+                // The weapon 2 is the primary weapon here, and it has +attack = quickfire
+                else if let Some(wnum) = extract_weapon_number(&resolved) {
+                    if let Some(wname) = impulse_to_weapon(wnum) {
+                        let is_quickfire = has_attack(&resolved);
+                        has_custom_weapon_binds = true;
+                        weapon_binds.push(WeaponBind {
+                            weapon: wname.to_string(),
+                            key: format_key_name(&key_upper),
+                            method: if is_quickfire { "quickfire".to_string() } else { "manual".to_string() },
+                            fire_key: if is_quickfire { None } else { Some("Mouse1".to_string()) },
                         });
                     }
                 }
@@ -623,9 +667,21 @@ fn analyze_weapon_binds(
         }
     }
 
+    // Check if Mouse1 is a "primary fire button" (target of multiple rebinds).
+    // If other keys rebind Mouse1, then Mouse1's own weapon bind is just
+    // the last-saved state, not an intentional weapon bind.
+    let mouse1_rebind_count = weapon_binds.iter()
+        .filter(|wb| wb.fire_key.as_deref() == Some("Mouse1"))
+        .count();
+    let mouse1_is_primary_fire = mouse1_rebind_count >= 2;
+
     // Deduplicate: keep only one bind per weapon (prefer quickfire over manual)
     let mut seen = HashMap::new();
     for wb in &weapon_binds {
+        // Skip Mouse1's own bind if it's a primary fire button
+        if mouse1_is_primary_fire && wb.key == "Mouse1" {
+            continue;
+        }
         let entry = seen.entry(wb.weapon.clone()).or_insert_with(|| wb.clone());
         if wb.method == "quickfire" && entry.method != "quickfire" {
             *entry = wb.clone();
@@ -872,7 +928,8 @@ pub fn read_ezquake_config(exe_path: String, config_name: String) -> Result<EzQu
         return Err("Invalid ezQuake path".into());
     }
 
-    let cfg_path = config_dir_from_exe(&path).join(&config_name);
+    let cfg_dir = config_dir_from_exe(&path);
+    let cfg_path = cfg_dir.join(&config_name);
     if !cfg_path.exists() {
         return Err(format!("Config file not found: {}", cfg_path.display()));
     }
@@ -883,7 +940,38 @@ pub fn read_ezquake_config(exe_path: String, config_name: String) -> Result<EzQu
         .map_err(|e| format!("Failed to read config: {}", e))?;
     let content = String::from_utf8_lossy(&bytes).to_string();
 
-    let parsed = parse_config(&content);
+    let mut parsed = parse_config(&content);
+
+    // Follow exec references to load additional aliases and binds.
+    // ezQuake resolves paths relative to the game directory (parent of configs/).
+    let game_dir = cfg_dir.parent().unwrap_or(&cfg_dir);
+    let exec_refs = parsed.exec_refs.clone();
+    for exec_path in &exec_refs {
+        // Try multiple resolution paths: relative to game dir, relative to config dir
+        let candidates = [
+            game_dir.join(exec_path),
+            cfg_dir.join(exec_path),
+            game_dir.join(exec_path.trim_start_matches("configs/")),
+        ];
+        for candidate in &candidates {
+            if candidate.exists() {
+                if let Ok(bytes) = std::fs::read(candidate) {
+                    let sub_content = String::from_utf8_lossy(&bytes).to_string();
+                    let sub_parsed = parse_config(&sub_content);
+                    // Merge aliases from sub-config (main config takes priority)
+                    for (k, v) in sub_parsed.aliases {
+                        parsed.aliases.entry(k).or_insert(v);
+                    }
+                    // Merge binds (sub-config binds come after main, so they can override)
+                    for binding in sub_parsed.bindings {
+                        parsed.bindings.push(binding);
+                    }
+                }
+                break;
+            }
+        }
+    }
+
     Ok(build_config(parsed))
 }
 
