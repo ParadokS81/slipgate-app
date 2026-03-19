@@ -166,11 +166,15 @@ export default function Changelog(props: ChangelogProps) {
       const commitCount = props.snapshot.ahead_by || props.snapshot.commits_since_stable.length;
       const snapshotEntry: ParsedRelease = {
         version: props.snapshot.commit,
-        date: new Date(props.snapshot.date).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }),
+        date: (() => {
+          // Snapshot date comes as "2026-03-01" — append T00:00:00 to avoid timezone parsing issues
+          const d = new Date(props.snapshot!.date + "T00:00:00");
+          return isNaN(d.getTime()) ? props.snapshot!.date : d.toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+        })(),
         markdown: "",
         summary: { improvements: 0, changes: 0, bugfixes: 0 },
         channel: "snapshot",
