@@ -868,7 +868,7 @@ pub struct EzQuakeInstallation {
 
 /// Read PE FileVersionRaw from an executable (Windows only).
 #[cfg(target_os = "windows")]
-fn read_exe_version(path: &Path) -> Option<String> {
+pub fn read_exe_version(path: &Path) -> Option<String> {
     use windows::core::PCWSTR;
     use windows::Win32::Storage::FileSystem::{
         GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW, VS_FIXEDFILEINFO,
@@ -926,7 +926,7 @@ fn read_exe_version(path: &Path) -> Option<String> {
 }
 
 #[cfg(not(target_os = "windows"))]
-fn read_exe_version(_path: &Path) -> Option<String> {
+pub fn read_exe_version(_path: &Path) -> Option<String> {
     None // Version detection only supported on Windows for now
 }
 

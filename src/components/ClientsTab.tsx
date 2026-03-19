@@ -1,10 +1,11 @@
-import { Show, For, createSignal, createEffect } from "solid-js";
+import { Show, For, createSignal, createEffect, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { ArrowLeft, HardDrive, Crosshair, Monitor, Rocket } from "lucide-solid";
-import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo } from "../types";
+import { ArrowLeft, HardDrive, Crosshair, Monitor, Rocket, Download } from "lucide-solid";
+import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo, UpdateCheckResult, UpdateProgress, UpdateResult } from "../types";
 import type { ProfileData } from "../store";
-import { getPrimarySetup } from "../store";
+import { getPrimarySetup, updatePrimaryClient } from "../store";
 
 interface ClientsTabProps {
   onConfigLoaded?: (config: EzQuakeConfig, exePath: string, configName: string, version: string | null) => void;
@@ -33,12 +34,32 @@ export default function ClientsTab(props: ClientsTabProps) {
   const [error, setError] = createSignal("");
   const [connectAddress, setConnectAddress] = createSignal("");
 
+  // Update state
+  const [updateCheck, setUpdateCheck] = createSignal<UpdateCheckResult | null>(null);
+  const [updateProgress, setUpdateProgress] = createSignal<UpdateProgress | null>(null);
+  const [updateResult, setUpdateResult] = createSignal<UpdateResult | null>(null);
+  const [isChecking, setIsChecking] = createSignal(false);
+  const [isUpdating, setIsUpdating] = createSignal(false);
+  const [updateChannel, setUpdateChannel] = createSignal<"stable" | "snapshot">("stable");
+
+  // Listen for progress events from Rust backend
+  let unlistenProgress: (() => void) | null = null;
+  (async () => {
+    unlistenProgress = await listen<UpdateProgress>("update-progress", (event) => {
+      setUpdateProgress(event.payload);
+    });
+  })();
+  onCleanup(() => unlistenProgress?.());
+
   // Restore saved path from profile store
   createEffect(() => {
     const prof = props.profile;
     if (!prof) return;
     const setup = getPrimarySetup(prof);
     const savedPath = setup.client.exe_path;
+    if (setup.client.update_channel) {
+      setUpdateChannel(setup.client.update_channel);
+    }
     if (savedPath && !exePath()) {
       setExePath(savedPath);
       if (setup.client.config_name) {
@@ -122,6 +143,83 @@ export default function ClientsTab(props: ClientsTabProps) {
     } catch (e) {
       setError(String(e));
     }
+  }
+
+  // ─── Update functions ──────────────────────────────────────────────────────
+
+  async function checkForUpdate() {
+    const path = exePath();
+    if (!path) return;
+    setIsChecking(true);
+    setUpdateCheck(null);
+    setUpdateResult(null);
+    setError("");
+    try {
+      const result = await invoke<UpdateCheckResult>("check_for_update", {
+        exePath: path,
+        clientName: "ezQuake",
+        channel: updateChannel(),
+      });
+      setUpdateCheck(result);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setIsChecking(false);
+    }
+  }
+
+  async function performUpdate() {
+    const check = updateCheck();
+    if (!check) return;
+
+    // Check if running first
+    try {
+      const running = await invoke<boolean>("check_client_running", { exeName: null });
+      if (running) {
+        setError("ezQuake is currently running. Close it before updating.");
+        return;
+      }
+    } catch { /* proceed if check fails */ }
+
+    setIsUpdating(true);
+    setUpdateProgress(null);
+    setUpdateResult(null);
+    setError("");
+    try {
+      const result = await invoke<UpdateResult>("download_and_install_update", {
+        exePath: exePath(),
+        clientName: "ezQuake",
+        channel: updateChannel(),
+        downloadUrl: check.download_url,
+        checksumsUrl: check.checksums_url,
+      });
+      setUpdateResult(result);
+      if (result.success) {
+        // Re-validate to update stored version
+        await validateAndLoad(exePath());
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function handleChannelChange(channel: "stable" | "snapshot") {
+    setUpdateChannel(channel);
+    setUpdateCheck(null);
+    setUpdateResult(null);
+    await updatePrimaryClient({ update_channel: channel });
+  }
+
+  /** Parse PE version "3.6.6.7947" into display parts */
+  function parseVersion(pe: string | null | undefined) {
+    if (!pe) return { semver: null, build: null };
+    const parts = pe.split(".");
+    return {
+      semver: parts.slice(0, 3).join("."),
+      build: parts[3] ?? null,
+    };
   }
 
   // Effective sensitivity multiplier
@@ -245,6 +343,167 @@ export default function ClientsTab(props: ClientsTabProps) {
           </div>
           <Row label="Player Name" value={config()?.player_name} />
         </div>
+
+        {/* Updates */}
+        <Show when={installation()?.valid}>
+          <div class="sg-card">
+            <div class="sg-card-header">
+              <Download size={16} />
+              <span>Updates</span>
+            </div>
+
+            {/* Channel selector */}
+            <div class="sg-row">
+              <span class="sg-row-label">Channel</span>
+              <span class="sg-row-value">
+                <select
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    cursor: "pointer",
+                    color: "inherit",
+                    "font-size": "inherit",
+                    "font-weight": "inherit",
+                    "font-family": "inherit",
+                  }}
+                  value={updateChannel()}
+                  onChange={(e) => handleChannelChange(e.currentTarget.value as "stable" | "snapshot")}
+                >
+                  <option value="stable" style={{ background: "#1a1a2e" }}>Stable</option>
+                  <option value="snapshot" style={{ background: "#1a1a2e" }}>Snapshot</option>
+                </select>
+              </span>
+            </div>
+
+            {/* Current version */}
+            <Row
+              label="Current"
+              value={(() => {
+                const v = parseVersion(installation()?.version);
+                if (!v.semver) return "Unknown";
+                return v.build ? `${v.semver} (build ${v.build})` : v.semver;
+              })()}
+            />
+
+            {/* Latest version + check button */}
+            <div class="sg-row">
+              <span class="sg-row-label">Latest</span>
+              <span class="sg-row-value" style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+                <Show when={updateCheck()?.latest_version} fallback="—">
+                  <span classList={{
+                    "sg-text-success": !updateCheck()?.update_available,
+                    "sg-text-warning": updateCheck()?.update_available,
+                  }}>
+                    {updateCheck()?.latest_version}
+                  </span>
+                  <Show when={!updateCheck()?.update_available}>
+                    <span style={{ "font-size": "11px", opacity: 0.6 }}>Up to date</span>
+                  </Show>
+                </Show>
+                <button
+                  class="sg-launch-btn"
+                  style={{ "margin-left": "auto", "font-size": "11px", padding: "2px 10px" }}
+                  onClick={checkForUpdate}
+                  disabled={isChecking() || isUpdating()}
+                >
+                  {isChecking() ? "Checking..." : "Check Now"}
+                </button>
+              </span>
+            </div>
+
+            {/* Changelog */}
+            <Show when={updateCheck()?.update_available && updateCheck()!.release_notes.length > 0}>
+              <div style={{
+                "max-height": "200px",
+                "overflow-y": "auto",
+                "font-size": "12px",
+                color: "var(--sg-text-dim)",
+                padding: "8px 12px",
+                background: "color-mix(in oklch, var(--sg-stat-border) 15%, transparent)",
+                "border-radius": "4px",
+                margin: "8px 72px 8px 72px",
+                border: "1px solid var(--sg-stat-border)",
+              }}>
+                <For each={updateCheck()!.release_notes}>
+                  {(note) => (
+                    <div style={{ "margin-bottom": "8px" }}>
+                      <div style={{ "font-weight": "600", color: "var(--sg-text-bright)" }}>
+                        {note.version}
+                        <span style={{ "font-size": "11px", "margin-left": "8px", color: "var(--sg-section-label)", "font-weight": "400" }}>
+                          {note.published_at ? new Date(note.published_at).toLocaleDateString() : ""}
+                        </span>
+                      </div>
+                      <div style={{ "white-space": "pre-wrap", "margin-top": "4px", "line-height": "1.4" }}>
+                        {note.body}
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+
+            {/* Progress bar during update */}
+            <Show when={isUpdating() && updateProgress()}>
+              <div style={{ margin: "8px 72px" }}>
+                <Show when={updateProgress()!.percent !== null}>
+                  <div style={{
+                    height: "4px",
+                    "border-radius": "2px",
+                    background: "var(--sg-stat-border)",
+                    overflow: "hidden",
+                    "margin-bottom": "4px",
+                  }}>
+                    <div style={{
+                      height: "100%",
+                      background: "oklch(var(--p))",
+                      "border-radius": "2px",
+                      transition: "width 0.3s ease",
+                      width: `${updateProgress()!.percent}%`,
+                    }} />
+                  </div>
+                </Show>
+                <div style={{ "font-size": "11px", color: "var(--sg-section-label)" }}>
+                  {updateProgress()!.message}
+                </div>
+              </div>
+            </Show>
+
+            {/* Update result */}
+            <Show when={updateResult()}>
+              <div style={{
+                margin: "8px 72px",
+                "font-size": "12px",
+                color: updateResult()!.success ? "oklch(var(--su))" : "#f87171",
+              }}>
+                <Show when={updateResult()!.success}>
+                  Updated to {updateResult()!.new_version}
+                  <Show when={updateResult()!.backup_path}>
+                    {" "}— previous saved as{" "}
+                    <span style={{ opacity: 0.7 }}>
+                      {updateResult()!.backup_path!.split(/[/\\]/).pop()}
+                    </span>
+                  </Show>
+                </Show>
+                <Show when={!updateResult()!.success}>
+                  Update failed: {updateResult()!.error}
+                </Show>
+              </div>
+            </Show>
+
+            {/* Update button */}
+            <Show when={updateCheck()?.update_available && !isUpdating() && !updateResult()?.success}>
+              <div class="sg-row" style={{ "justify-content": "center" }}>
+                <button
+                  class="sg-launch-btn sg-launch-btn-primary"
+                  onClick={performUpdate}
+                >
+                  Update to {updateCheck()!.latest_version}
+                </button>
+              </div>
+            </Show>
+          </div>
+        </Show>
 
         {/* Input Settings */}
         <div class="sg-card">

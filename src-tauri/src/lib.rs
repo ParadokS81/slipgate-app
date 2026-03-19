@@ -24,6 +24,10 @@ pub fn run() {
             commands::ezquake::read_ezquake_config,
             commands::ezquake::launch_ezquake,
             commands::auth::await_oauth_callback,
+            commands::updater::check_for_update,
+            commands::updater::download_and_install_update,
+            commands::updater::check_client_running,
+            commands::updater::get_release_changelog,
         ])
         .setup(|app| {
             // Build the right-click context menu

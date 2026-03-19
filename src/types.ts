@@ -129,3 +129,35 @@ export interface EzQuakeConfig {
   weapon_binds: WeaponBind[];
   raw_cvars: Record<string, string>;
 }
+
+// ─── Client updater types ───────────────────────────────────────────────────
+
+export interface ReleaseNote {
+  version: string;
+  published_at: string;
+  body: string;
+}
+
+export interface UpdateCheckResult {
+  update_available: boolean;
+  current_version: string | null;
+  current_build: string | null;
+  latest_version: string;
+  download_url: string;
+  checksums_url: string | null;
+  release_notes: ReleaseNote[];
+  channel: string;
+}
+
+export interface UpdateProgress {
+  stage: "downloading" | "verifying" | "backing_up" | "installing" | "done" | "error";
+  percent: number | null;
+  message: string;
+}
+
+export interface UpdateResult {
+  success: boolean;
+  new_version: string | null;
+  backup_path: string | null;
+  error: string | null;
+}

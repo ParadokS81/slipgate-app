@@ -7,6 +7,7 @@ export interface ClientInfo {
   exe_path: string | null;
   config_name: string | null;
   version: string | null;    // "3.6.6.7947" from PE FileVersionRaw
+  update_channel: "stable" | "snapshot";  // default "stable"
 }
 
 export interface GearSelection {
@@ -72,6 +73,7 @@ const DEFAULT_CLIENT: ClientInfo = {
   exe_path: null,
   config_name: null,
   version: null,
+  update_channel: "stable",
 };
 
 const DEFAULT_HARDWARE: SetupHardware = {
