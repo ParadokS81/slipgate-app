@@ -1033,6 +1033,8 @@ input[type="number"] {
   cursor: pointer;
   user-select: none;
   transition: background 0.15s;
+  font-family: "Geist", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 .sg-changelog-header:hover {
@@ -1065,9 +1067,13 @@ input[type="number"] {
 
 .sg-changelog-body {
   padding: 4px 16px 12px 34px;
-  font-size: 12px;
+  font-family: "Geist", system-ui, sans-serif;
+  font-size: 12.5px;
+  font-weight: 450;
   line-height: 1.5;
   color: var(--sg-text-dim);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Markdown rendered elements inside changelog body */
@@ -1121,4 +1127,30 @@ input[type="number"] {
 
 .sg-changelog-body a:hover {
   text-decoration: underline;
+}
+
+/* Status text colors */
+.sg-text-success { color: oklch(var(--su)); }
+.sg-text-warning { color: oklch(var(--wa)); }
+
+/* Snapshot (nightly) entries — orange accent */
+
+.sg-changelog-version-snapshot {
+  color: oklch(var(--wa)) !important;
+}
+
+.sg-changelog-channel-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: oklch(var(--wa));
+  background: color-mix(in oklch, oklch(var(--wa)) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in oklch, oklch(var(--wa)) 25%, transparent);
+}
+
+.sg-changelog-snapshot .sg-changelog-header:hover {
+  background: color-mix(in oklch, oklch(var(--wa)) 8%, transparent);
 }

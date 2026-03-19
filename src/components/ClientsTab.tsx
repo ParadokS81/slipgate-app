@@ -415,9 +415,7 @@ export default function ClientsTab(props: ClientsTabProps) {
 
             {/* Changelog */}
             <Show when={updateCheck()?.update_available && updateCheck()!.release_notes.length > 0}>
-              <div style={{ margin: "8px 0", "max-height": "300px", "overflow-y": "auto" }}>
-                <Changelog notes={updateCheck()!.release_notes} />
-              </div>
+              <Changelog notes={updateCheck()!.release_notes} snapshot={updateCheck()!.snapshot} />
             </Show>
 
             {/* Progress bar during update */}

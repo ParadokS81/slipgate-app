@@ -138,6 +138,16 @@ export interface ReleaseNote {
   body: string;
 }
 
+export interface SnapshotInfo {
+  available: boolean;
+  filename: string;
+  date: string;
+  commit: string;
+  download_url: string;
+  checksum_url: string;
+  newer_than_stable: boolean;
+}
+
 export interface UpdateCheckResult {
   update_available: boolean;
   current_version: string | null;
@@ -147,6 +157,7 @@ export interface UpdateCheckResult {
   checksums_url: string | null;
   release_notes: ReleaseNote[];
   channel: string;
+  snapshot: SnapshotInfo | null;
 }
 
 export interface UpdateProgress {

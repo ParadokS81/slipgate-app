@@ -57,6 +57,17 @@ pub struct ReleaseNote {
 }
 
 #[derive(Serialize, Clone)]
+pub struct SnapshotInfo {
+    pub available: bool,
+    pub filename: String,
+    pub date: String,
+    pub commit: String,
+    pub download_url: String,
+    pub checksum_url: String,
+    pub newer_than_stable: bool,
+}
+
+#[derive(Serialize, Clone)]
 pub struct UpdateCheckResult {
     pub update_available: bool,
     pub current_version: Option<String>,
@@ -66,6 +77,7 @@ pub struct UpdateCheckResult {
     pub checksums_url: Option<String>,
     pub release_notes: Vec<ReleaseNote>,
     pub channel: String,
+    pub snapshot: Option<SnapshotInfo>,
 }
 
 #[derive(Serialize, Clone)]
@@ -141,6 +153,93 @@ async fn fetch_github_releases(client: &ClientDef) -> Result<Vec<GitHubRelease>,
     resp.json::<Vec<GitHubRelease>>()
         .await
         .map_err(|e| format!("Failed to parse GitHub response: {}", e))
+}
+
+/// Parse snapshot filename: "20260301-211256_b13f585_ezquake.exe" -> (date, commit)
+fn parse_snapshot_filename(filename: &str) -> Option<(String, String)> {
+    // Pattern: YYYYMMDD-HHMMSS_{commit}_{exename}.exe
+    let parts: Vec<&str> = filename.splitn(3, '_').collect();
+    if parts.len() < 2 {
+        return None;
+    }
+    let date_part = parts[0]; // "20260301-211256"
+    let commit = parts[1]; // "b13f585"
+
+    // Parse date to readable format
+    if date_part.len() >= 8 {
+        let year = &date_part[0..4];
+        let month = &date_part[4..6];
+        let day = &date_part[6..8];
+        let date = format!("{}-{}-{}", year, month, day);
+        return Some((date, commit.to_string()));
+    }
+    None
+}
+
+/// Scrape latest snapshot info from builds.quakeworld.nu directory listing
+async fn fetch_latest_snapshot(
+    client: &ClientDef,
+    latest_stable_date: Option<&str>,
+) -> Result<SnapshotInfo, String> {
+    let base_url = client
+        .snapshot_url
+        .ok_or("No snapshot URL configured for this client")?;
+
+    let http = reqwest::Client::new();
+    let html = http
+        .get(base_url)
+        .header(USER_AGENT, "slipgate-app/0.1")
+        .send()
+        .await
+        .map_err(|e| format!("Snapshot server unreachable: {}", e))?
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read snapshot listing: {}", e))?;
+
+    // Parse all .exe links from the HTML directory listing
+    // Links look like: href="20260301-211256_b13f585_ezquake.exe"
+    let mut snapshots: Vec<String> = Vec::new();
+    for part in html.split("href=\"") {
+        if let Some(end) = part.find('"') {
+            let href = &part[..end];
+            if href.ends_with(".exe") && !href.ends_with(".md5") && href.contains('_') {
+                snapshots.push(href.to_string());
+            }
+        }
+    }
+
+    if snapshots.is_empty() {
+        return Err("No snapshots found.".into());
+    }
+
+    // Sort by name (date-based names sort chronologically)
+    snapshots.sort();
+    let latest = snapshots.last().unwrap();
+
+    let (date, commit) = parse_snapshot_filename(latest)
+        .ok_or_else(|| format!("Cannot parse snapshot filename: {}", latest))?;
+
+    let download_url = format!("{}{}", base_url, latest);
+    let checksum_url = format!("{}{}.md5", base_url, latest);
+
+    // Check if snapshot is newer than latest stable release
+    let newer_than_stable = latest_stable_date
+        .map(|stable_date| {
+            // stable_date is ISO like "2026-03-01T19:45:47Z", snapshot date is "2026-03-01"
+            let stable_short = &stable_date[..10]; // "2026-03-01"
+            date.as_str() > stable_short
+        })
+        .unwrap_or(true);
+
+    Ok(SnapshotInfo {
+        available: true,
+        filename: latest.clone(),
+        date,
+        commit,
+        download_url,
+        checksum_url,
+        newer_than_stable,
+    })
 }
 
 /// Download checksums.txt and parse into a map of filename -> SHA-256 hex
@@ -413,6 +512,14 @@ pub async fn check_for_update(
             }
         }
 
+        // Also check for latest snapshot (non-blocking — don't fail if unavailable)
+        let snapshot = if client.snapshot_url.is_some() {
+            let stable_date = latest.published_at.as_deref();
+            fetch_latest_snapshot(client, stable_date).await.ok()
+        } else {
+            None
+        };
+
         Ok(UpdateCheckResult {
             update_available,
             current_version: current_version_str,
@@ -422,10 +529,22 @@ pub async fn check_for_update(
             checksums_url: checksums_asset.map(|a| a.browser_download_url.clone()),
             release_notes,
             channel: "stable".into(),
+            snapshot,
         })
     } else {
-        // Snapshot support — placeholder for now
-        Err("Snapshot channel not yet implemented.".into())
+        // Snapshot-only check
+        let snapshot = fetch_latest_snapshot(client, None).await?;
+        Ok(UpdateCheckResult {
+            update_available: true,
+            current_version: current_version_str,
+            current_build,
+            latest_version: snapshot.filename.clone(),
+            download_url: snapshot.download_url.clone(),
+            checksums_url: Some(snapshot.checksum_url.clone()),
+            release_notes: vec![],
+            channel: "snapshot".into(),
+            snapshot: Some(snapshot),
+        })
     }
 }
 

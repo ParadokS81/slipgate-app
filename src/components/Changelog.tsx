@@ -1,7 +1,7 @@
 import { Show, For, createSignal } from "solid-js";
 import { marked } from "marked";
 import { ChevronDown, ChevronRight } from "lucide-solid";
-import type { ReleaseNote } from "../types";
+import type { ReleaseNote, SnapshotInfo } from "../types";
 
 // ─── Pre-processing ────────────────────────────────────────────────────────
 
@@ -10,6 +10,7 @@ interface ParsedRelease {
   date: string;
   markdown: string;
   summary: { improvements: number; changes: number; bugfixes: number };
+  channel: "stable" | "snapshot";
 }
 
 /** Clean up raw release note markdown for better display */
@@ -42,7 +43,7 @@ function preprocessNote(note: ReleaseNote): ParsedRelease {
       })
     : "";
 
-  return { version: note.version, date, markdown: md, summary: { improvements, changes, bugfixes } };
+  return { version: note.version, date, markdown: md, summary: { improvements, changes, bugfixes }, channel: "stable" };
 }
 
 /** Count bullet items under a ### section */
@@ -81,13 +82,15 @@ function renderMarkdown(md: string): string {
 
 interface ChangelogProps {
   notes: ReleaseNote[];
+  snapshot?: SnapshotInfo | null;
 }
 
 function ReleaseAccordion(props: { release: ParsedRelease; defaultOpen: boolean }) {
   const [open, setOpen] = createSignal(props.defaultOpen);
+  const isSnapshot = () => props.release.channel === "snapshot";
 
   return (
-    <div class="sg-changelog-release">
+    <div class="sg-changelog-release" classList={{ "sg-changelog-snapshot": isSnapshot() }}>
       {/* Header — always visible, clickable */}
       <div class="sg-changelog-header" onClick={() => setOpen(!open())}>
         <span class="sg-changelog-chevron">
@@ -95,27 +98,63 @@ function ReleaseAccordion(props: { release: ParsedRelease; defaultOpen: boolean 
             <ChevronDown size={14} />
           </Show>
         </span>
-        <span class="sg-changelog-version">{props.release.version}</span>
+        <span
+          class="sg-changelog-version"
+          classList={{ "sg-changelog-version-snapshot": isSnapshot() }}
+        >
+          {props.release.version}
+        </span>
+        <Show when={isSnapshot()}>
+          <span class="sg-changelog-channel-badge">snapshot</span>
+        </Show>
         <span class="sg-changelog-date">{props.release.date}</span>
-        <span class="sg-changelog-summary">{summaryText(props.release.summary)}</span>
+        <span class="sg-changelog-summary">
+          {isSnapshot() ? "latest dev build" : summaryText(props.release.summary)}
+        </span>
       </div>
 
-      {/* Body — collapsible markdown content */}
+      {/* Body — collapsible content */}
       <Show when={open()}>
-        <div class="sg-changelog-body" innerHTML={renderMarkdown(props.release.markdown)} />
+        <Show when={props.release.markdown} fallback={
+          <div class="sg-changelog-body" style={{ color: "var(--sg-section-label)", "font-style": "italic" }}>
+            Snapshot builds don't include changelogs. This is the latest development build — it may include unreleased improvements or experimental features.
+          </div>
+        }>
+          <div class="sg-changelog-body" innerHTML={renderMarkdown(props.release.markdown)} />
+        </Show>
       </Show>
     </div>
   );
 }
 
 export default function Changelog(props: ChangelogProps) {
-  const parsed = () => props.notes.map(preprocessNote);
+  const parsed = (): ParsedRelease[] => {
+    const stableNotes = props.notes.map(preprocessNote);
+
+    // If there's a snapshot newer than stable, prepend it
+    if (props.snapshot?.available && props.snapshot.newer_than_stable) {
+      const snapshotEntry: ParsedRelease = {
+        version: props.snapshot.commit,
+        date: new Date(props.snapshot.date).toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }),
+        markdown: "",
+        summary: { improvements: 0, changes: 0, bugfixes: 0 },
+        channel: "snapshot",
+      };
+      return [snapshotEntry, ...stableNotes];
+    }
+
+    return stableNotes;
+  };
 
   return (
     <div class="sg-changelog">
       <For each={parsed()}>
         {(release, i) => (
-          <ReleaseAccordion release={release} defaultOpen={i() === 0} />
+          <ReleaseAccordion release={release} defaultOpen={i() === 0 && release.channel === "stable"} />
         )}
       </For>
     </div>
