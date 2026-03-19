@@ -12,6 +12,7 @@ interface ParsedRelease {
   summary: { improvements: number; changes: number; bugfixes: number };
   channel: "stable" | "snapshot";
   commits?: SnapshotCommit[];
+  is_newer: boolean;
 }
 
 /** Clean up raw release note markdown for better display */
@@ -44,7 +45,7 @@ function preprocessNote(note: ReleaseNote): ParsedRelease {
       })
     : "";
 
-  return { version: note.version, date, markdown: md, summary: { improvements, changes, bugfixes }, channel: "stable" };
+  return { version: note.version, date, markdown: md, summary: { improvements, changes, bugfixes }, channel: "stable", is_newer: note.is_newer };
 }
 
 /** Count bullet items under a ### section */
@@ -84,14 +85,16 @@ function renderMarkdown(md: string): string {
 interface ChangelogProps {
   notes: ReleaseNote[];
   snapshot?: SnapshotInfo | null;
+  currentVersion?: string | null;
 }
 
-function ReleaseAccordion(props: { release: ParsedRelease; defaultOpen: boolean }) {
+function ReleaseAccordion(props: { release: ParsedRelease; defaultOpen: boolean; isCurrent?: boolean }) {
   const [open, setOpen] = createSignal(props.defaultOpen);
   const isSnapshot = () => props.release.channel === "snapshot";
+  const isOlder = () => !props.release.is_newer && !isSnapshot();
 
   return (
-    <div class="sg-changelog-release" classList={{ "sg-changelog-snapshot": isSnapshot() }}>
+    <div class="sg-changelog-release" classList={{ "sg-changelog-snapshot": isSnapshot(), "sg-changelog-older": isOlder() }}>
       {/* Header — always visible, clickable */}
       <div class="sg-changelog-header" onClick={() => setOpen(!open())}>
         <span class="sg-changelog-chevron">
@@ -113,6 +116,9 @@ function ReleaseAccordion(props: { release: ParsedRelease; defaultOpen: boolean 
         </Show>
         <Show when={!isSnapshot()}>
           <span class="sg-changelog-channel-badge sg-changelog-channel-badge-stable">stable</span>
+        </Show>
+        <Show when={props.isCurrent}>
+          <span class="sg-changelog-channel-badge sg-changelog-channel-badge-current">installed</span>
         </Show>
         <span class="sg-changelog-date">{props.release.date}</span>
         <span class="sg-changelog-summary">
@@ -169,6 +175,7 @@ export default function Changelog(props: ChangelogProps) {
         summary: { improvements: 0, changes: 0, bugfixes: 0 },
         channel: "snapshot",
         commits: props.snapshot.commits_since_stable,
+        is_newer: true,
       };
       return [snapshotEntry, ...stableNotes];
     }
@@ -180,7 +187,11 @@ export default function Changelog(props: ChangelogProps) {
     <div class="sg-changelog">
       <For each={parsed()}>
         {(release, i) => (
-          <ReleaseAccordion release={release} defaultOpen={i() === 0 && release.channel === "stable"} />
+          <ReleaseAccordion
+            release={release}
+            defaultOpen={i() === 0 && release.channel === "stable"}
+            isCurrent={!!props.currentVersion && release.version === props.currentVersion}
+          />
         )}
       </For>
     </div>

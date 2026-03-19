@@ -136,6 +136,7 @@ export interface ReleaseNote {
   version: string;
   published_at: string;
   body: string;
+  is_newer: boolean;
 }
 
 export interface SnapshotCommit {

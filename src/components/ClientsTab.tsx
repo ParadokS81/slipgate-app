@@ -370,7 +370,7 @@ export default function ClientsTab(props: ClientsTabProps) {
             {/* Changelog — stable + snapshot entries */}
             <Show when={updateCheck()}>
               <Show when={updateCheck()!.release_notes.length > 0 || updateCheck()!.snapshot}>
-                <Changelog notes={updateCheck()!.release_notes} snapshot={updateCheck()!.snapshot} />
+                <Changelog notes={updateCheck()!.release_notes} snapshot={updateCheck()!.snapshot} currentVersion={updateCheck()!.current_version} />
               </Show>
 
               <Show when={!updateCheck()!.update_available && !updateCheck()!.snapshot?.newer_than_stable}>

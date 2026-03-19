@@ -54,6 +54,7 @@ pub struct ReleaseNote {
     pub version: String,
     pub published_at: String,
     pub body: String,
+    pub is_newer: bool,
 }
 
 #[derive(Serialize, Clone)]
@@ -572,24 +573,23 @@ pub async fn check_for_update(
             None => true, // Can't read version — assume update available
         };
 
-        // Collect release notes for versions between current and latest
+        // Collect all release notes, tagging which are newer than current
         let mut release_notes = Vec::new();
         for release in &releases {
             if let Ok(rv) = release.tag_name.parse::<semver::Version>() {
-                let dominated = current_semver
+                let is_newer = current_semver
                     .as_ref()
                     .map(|c| rv > *c)
                     .unwrap_or(true);
-                if dominated {
-                    release_notes.push(ReleaseNote {
-                        version: release.tag_name.clone(),
-                        published_at: release
-                            .published_at
-                            .clone()
-                            .unwrap_or_default(),
-                        body: release.body.clone().unwrap_or_default(),
-                    });
-                }
+                release_notes.push(ReleaseNote {
+                    version: release.tag_name.clone(),
+                    published_at: release
+                        .published_at
+                        .clone()
+                        .unwrap_or_default(),
+                    body: release.body.clone().unwrap_or_default(),
+                    is_newer,
+                });
             }
         }
 
@@ -836,6 +836,7 @@ pub async fn get_release_changelog(
                     version: release.tag_name.clone(),
                     published_at: release.published_at.clone().unwrap_or_default(),
                     body: release.body.clone().unwrap_or_default(),
+                    is_newer: true,
                 });
             }
         }
