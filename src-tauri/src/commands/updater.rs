@@ -857,7 +857,7 @@ pub async fn get_release_changelog(
 
     let mut notes = Vec::new();
     for release in &releases {
-        if let Ok(rv) = release.tag_name.parse::<semver::Version>() {
+        if let Some(rv) = parse_version_lenient(&release.tag_name) {
             let dominated = from_semver
                 .as_ref()
                 .map(|from| rv > *from)

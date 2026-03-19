@@ -2,7 +2,7 @@ import { Show, For, createSignal, createEffect, onCleanup } from "solid-js";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
-import { ArrowLeft, HardDrive, Crosshair, Monitor, Rocket, Download } from "lucide-solid";
+import { ArrowLeft, HardDrive, Crosshair, Monitor, Rocket, Download, Camera } from "lucide-solid";
 import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo, UpdateCheckResult, UpdateProgress, UpdateResult, ReleaseNote } from "../types";
 import type { ProfileData } from "../store";
 import { getPrimarySetup } from "../store";
@@ -108,6 +108,54 @@ export default function ClientsTab(props: ClientsTabProps) {
     }
   }
 
+  // Screenshot POC
+  const [captureStatus, setCaptureStatus] = createSignal<string>("");
+  const [captureResult, setCaptureResult] = createSignal<string | null>(null);
+  const [isCapturing, setIsCapturing] = createSignal(false);
+
+  async function testScreenshotCapture() {
+    if (!exePath()) {
+      setCaptureStatus("Set ezQuake path first");
+      return;
+    }
+    setIsCapturing(true);
+    setCaptureStatus("Launching ezQuake...");
+    setCaptureResult(null);
+
+    try {
+      const assetsDir = "C:/Users/Administrator/projects/slipgate-app/assets/screenshots";
+      const demoPath = `${assetsDir}/bps.qwd`;
+      const mapPath = `${assetsDir}/hud.bsp`;
+      const outputDir = `${assetsDir}/output`;
+
+      setCaptureStatus("Capture in progress (~12 seconds)...");
+
+      const result = await invoke<{ success: boolean; screenshot_path: string | null; error: string | null }>(
+        "capture_screenshot",
+        {
+          options: {
+            exe_path: exePath(),
+            output_dir: outputDir,
+            demo_path: demoPath,
+            map_path: mapPath,
+            screenshot_name: "slipgate_poc_001",
+          },
+        }
+      );
+
+      if (result.success) {
+        setCaptureStatus("Screenshot captured!");
+        setCaptureResult(result.screenshot_path);
+      } else {
+        setCaptureStatus(`Failed: ${result.error || "Unknown error"}`);
+      }
+    } catch (e) {
+      setCaptureStatus(`Error: ${e}`);
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
   async function browseForExe() {
     try {
       const selected = await open({
@@ -168,11 +216,11 @@ export default function ClientsTab(props: ClientsTabProps) {
         invoke<ReleaseNote[]>("get_release_changelog", {
           clientName: "KTX",
           fromVersion: null,
-        }).catch(() => [] as ReleaseNote[]),
+        }).catch((e) => { console.error("KTX fetch error:", e); return [] as ReleaseNote[]; }),
         invoke<ReleaseNote[]>("get_release_changelog", {
           clientName: "MVDSV",
           fromVersion: null,
-        }).catch(() => [] as ReleaseNote[]),
+        }).catch((e) => { console.error("MVDSV fetch error:", e); return [] as ReleaseNote[]; }),
       ]);
       setUpdateCheck(ezResult);
       setKtxNotes(ktxResult);
@@ -565,6 +613,36 @@ export default function ClientsTab(props: ClientsTabProps) {
               Launch
             </button>
           </div>
+        </div>
+
+        {/* Screenshot POC */}
+        <div class="sg-card">
+          <div class="sg-card-header">
+            <Camera size={16} />
+            <span>Screenshot POC</span>
+          </div>
+          <div class="sg-row">
+            <span class="sg-row-label">Auto-capture</span>
+            <button
+              class="sg-launch-btn sg-launch-btn-primary"
+              onClick={testScreenshotCapture}
+              disabled={isCapturing()}
+            >
+              {isCapturing() ? "Capturing..." : "Take Screenshot"}
+            </button>
+          </div>
+          <Show when={captureStatus()}>
+            <div class="sg-row">
+              <span class="sg-row-label">Status</span>
+              <span class="sg-row-value" style={{ "font-size": "11px" }}>{captureStatus()}</span>
+            </div>
+          </Show>
+          <Show when={captureResult()}>
+            <div class="sg-row">
+              <span class="sg-row-label">File</span>
+              <span class="sg-row-value" style={{ "font-size": "10px", "word-break": "break-all" }}>{captureResult()}</span>
+            </div>
+          </Show>
         </div>
 
         {/* Error */}
