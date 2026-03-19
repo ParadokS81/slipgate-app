@@ -469,28 +469,34 @@ fn is_default_impulse_bind(key: &str, cmd: &str) -> bool {
 }
 
 /// Extract weapon numbers from a command string.
-/// Handles both "impulse 7" and "weapon 7 3 2" formats.
+/// Handles "impulse 7", "weapon 7 3 2", and "+fire 7 2" / "+fire_ar 7 2" formats.
 /// Returns the primary weapon number (first one listed).
-/// Returns None for long impulse chains (4+ numbers) — those are pack-drop/priority binds.
+/// Returns None for long chains (4+ numbers) — those are pack-drop/priority binds.
 fn extract_weapon_number(cmd: &str) -> Option<u32> {
     let lower = cmd.to_lowercase();
     for part in lower.split(';') {
         let part = part.trim();
-        if part.starts_with("impulse ") || part.starts_with("weapon ") {
-            let after_cmd = if part.starts_with("impulse ") {
-                &part[8..]
-            } else {
-                &part[7..]
-            };
-            // Count how many numbers in the list
-            let numbers: Vec<u32> = after_cmd.trim().split_whitespace()
+        // Match: impulse N, weapon N [N2...], +fire N [N2...], +fire_ar N [N2...]
+        let (after_cmd, is_impulse_only) = if part.starts_with("impulse ") {
+            (Some(&part[8..]), true)
+        } else if part.starts_with("weapon ") {
+            (Some(&part[7..]), false)
+        } else if part.starts_with("+fire_ar ") {
+            (Some(&part[9..]), false)
+        } else if part.starts_with("+fire ") {
+            (Some(&part[6..]), false)
+        } else {
+            (None, false)
+        };
+        if let Some(after) = after_cmd {
+            let numbers: Vec<u32> = after.trim().split_whitespace()
                 .filter_map(|n| n.parse::<u32>().ok())
                 .collect();
-            // 4+ numbers = pack-drop / best-weapon priority chain, skip
-            if numbers.len() >= 4 {
+            // 4+ numbers on impulse = pack-drop chain, skip.
+            // But weapon/+fire chains with many fallbacks are legitimate.
+            if is_impulse_only && numbers.len() >= 4 {
                 return None;
             }
-            // First number is the primary weapon
             if let Some(&num) = numbers.first() {
                 if (1..=8).contains(&num) {
                     return Some(num);
@@ -501,9 +507,18 @@ fn extract_weapon_number(cmd: &str) -> Option<u32> {
     None
 }
 
-/// Check if a command string contains +attack
+/// Check if a command string contains +attack or +fire/+fire_ar (built-in quickfire).
+/// +fire is an ezQuake built-in that combines weapon select + attack.
+/// Ignores +fire/+attack when they appear inside a "bind" command (rebind setup, not direct fire).
 fn has_attack(cmd: &str) -> bool {
-    cmd.to_lowercase().split(';').any(|part| part.trim().starts_with("+attack"))
+    cmd.to_lowercase().split(';').any(|part| {
+        let p = part.trim();
+        // Skip if this part is a bind command (e.g. "bind mouse1 +fire 3")
+        if p.starts_with("bind ") {
+            return false;
+        }
+        p.starts_with("+attack") || p.starts_with("+fire ") || p.starts_with("+fire_ar ")
+    })
 }
 
 /// Check if a command string rebinds mouse1
