@@ -19,6 +19,7 @@
     "daisyui": "^5.5.1-beta.2",
     "firebase": "^12.10.0",
     "lucide-solid": "^0.577.0",
+    "marked": "^17.0.4",
     "simple-keyboard-layouts": "^3.4.179",
     "solid-js": "^1.9.3",
     "tailwindcss": "^4.2.1"
