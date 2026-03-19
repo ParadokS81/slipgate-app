@@ -156,6 +156,18 @@ fn parse_pe_version(pe_version: &str) -> Option<(semver::Version, String)> {
     Some((semver::Version::new(major, minor, patch), build))
 }
 
+/// Lenient version parser — handles "1.46", "v1.44", "3.6.9", "v1.00" etc.
+fn parse_version_lenient(tag: &str) -> Option<semver::Version> {
+    let cleaned = tag.strip_prefix('v').unwrap_or(tag);
+    // Try direct parse first (valid semver like "3.6.9")
+    if let Ok(v) = cleaned.parse::<semver::Version>() {
+        return Some(v);
+    }
+    // Try adding .0 for two-component versions like "1.46"
+    let padded = format!("{}.0", cleaned);
+    padded.parse::<semver::Version>().ok()
+}
+
 /// Fetch all releases from GitHub for a client
 async fn fetch_github_releases(client: &ClientDef) -> Result<Vec<GitHubRelease>, String> {
     let url = format!(
@@ -565,10 +577,8 @@ pub async fn check_for_update(
 
         // Find latest release (first in list — GitHub returns newest first)
         let latest = &releases[0];
-        let latest_version: semver::Version = latest
-            .tag_name
-            .parse()
-            .map_err(|e| format!("Cannot parse version tag '{}': {}", latest.tag_name, e))?;
+        let latest_version: semver::Version = parse_version_lenient(&latest.tag_name)
+            .ok_or_else(|| format!("Cannot parse version tag '{}'", latest.tag_name))?;
 
         // Find the download URL for the Windows asset
         let download_asset = latest
@@ -597,7 +607,7 @@ pub async fn check_for_update(
         // Collect all release notes, tagging which are newer than current
         let mut release_notes = Vec::new();
         for release in &releases {
-            if let Ok(rv) = release.tag_name.parse::<semver::Version>() {
+            if let Some(rv) = parse_version_lenient(&release.tag_name) {
                 let is_newer = current_semver
                     .as_ref()
                     .map(|c| rv > *c)
@@ -843,7 +853,7 @@ pub async fn get_release_changelog(
 
     let from_semver = from_version
         .as_ref()
-        .and_then(|v| v.parse::<semver::Version>().ok());
+        .and_then(|v| parse_version_lenient(v));
 
     let mut notes = Vec::new();
     for release in &releases {
