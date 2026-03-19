@@ -5,7 +5,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { ArrowLeft, HardDrive, Crosshair, Monitor, Rocket, Download } from "lucide-solid";
 import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo, UpdateCheckResult, UpdateProgress, UpdateResult } from "../types";
 import type { ProfileData } from "../store";
-import { getPrimarySetup, updatePrimaryClient } from "../store";
+import { getPrimarySetup } from "../store";
 import Changelog from "./Changelog";
 
 interface ClientsTabProps {
@@ -41,7 +41,6 @@ export default function ClientsTab(props: ClientsTabProps) {
   const [updateResult, setUpdateResult] = createSignal<UpdateResult | null>(null);
   const [isChecking, setIsChecking] = createSignal(false);
   const [isUpdating, setIsUpdating] = createSignal(false);
-  const [updateChannel, setUpdateChannel] = createSignal<"stable" | "snapshot">("stable");
 
   // Listen for progress events from Rust backend
   let unlistenProgress: (() => void) | null = null;
@@ -58,9 +57,6 @@ export default function ClientsTab(props: ClientsTabProps) {
     if (!prof) return;
     const setup = getPrimarySetup(prof);
     const savedPath = setup.client.exe_path;
-    if (setup.client.update_channel) {
-      setUpdateChannel(setup.client.update_channel);
-    }
     if (savedPath && !exePath()) {
       setExePath(savedPath);
       if (setup.client.config_name) {
@@ -159,7 +155,7 @@ export default function ClientsTab(props: ClientsTabProps) {
       const result = await invoke<UpdateCheckResult>("check_for_update", {
         exePath: path,
         clientName: "ezQuake",
-        channel: updateChannel(),
+        channel: "stable",
       });
       setUpdateCheck(result);
     } catch (e) {
@@ -169,7 +165,7 @@ export default function ClientsTab(props: ClientsTabProps) {
     }
   }
 
-  async function performUpdate() {
+  async function performUpdate(target: "stable" | "snapshot") {
     const check = updateCheck();
     if (!check) return;
 
@@ -182,6 +178,14 @@ export default function ClientsTab(props: ClientsTabProps) {
       }
     } catch { /* proceed if check fails */ }
 
+    // Pick the right download URL based on target
+    const downloadUrl = target === "snapshot" && check.snapshot
+      ? check.snapshot.download_url
+      : check.download_url;
+    const checksumsUrl = target === "snapshot" && check.snapshot
+      ? check.snapshot.checksum_url
+      : check.checksums_url;
+
     setIsUpdating(true);
     setUpdateProgress(null);
     setUpdateResult(null);
@@ -190,13 +194,12 @@ export default function ClientsTab(props: ClientsTabProps) {
       const result = await invoke<UpdateResult>("download_and_install_update", {
         exePath: exePath(),
         clientName: "ezQuake",
-        channel: updateChannel(),
-        downloadUrl: check.download_url,
-        checksumsUrl: check.checksums_url,
+        channel: target,
+        downloadUrl,
+        checksumsUrl,
       });
       setUpdateResult(result);
       if (result.success) {
-        // Re-validate to update stored version
         await validateAndLoad(exePath());
       }
     } catch (e) {
@@ -204,13 +207,6 @@ export default function ClientsTab(props: ClientsTabProps) {
     } finally {
       setIsUpdating(false);
     }
-  }
-
-  async function handleChannelChange(channel: "stable" | "snapshot") {
-    setUpdateChannel(channel);
-    setUpdateCheck(null);
-    setUpdateResult(null);
-    await updatePrimaryClient({ update_channel: channel });
   }
 
   /** Parse PE version "3.6.6.7947" into display parts */
@@ -351,30 +347,14 @@ export default function ClientsTab(props: ClientsTabProps) {
             <div class="sg-card-header">
               <Download size={16} />
               <span>Updates</span>
-            </div>
-
-            {/* Channel selector */}
-            <div class="sg-row">
-              <span class="sg-row-label">Channel</span>
-              <span class="sg-row-value">
-                <select
-                  style={{
-                    background: "transparent",
-                    border: "none",
-                    outline: "none",
-                    cursor: "pointer",
-                    color: "inherit",
-                    "font-size": "inherit",
-                    "font-weight": "inherit",
-                    "font-family": "inherit",
-                  }}
-                  value={updateChannel()}
-                  onChange={(e) => handleChannelChange(e.currentTarget.value as "stable" | "snapshot")}
-                >
-                  <option value="stable" style={{ background: "#1a1a2e" }}>Stable</option>
-                  <option value="snapshot" style={{ background: "#1a1a2e" }}>Snapshot</option>
-                </select>
-              </span>
+              <button
+                class="sg-launch-btn"
+                style={{ "margin-left": "auto", "font-size": "11px", padding: "2px 10px" }}
+                onClick={checkForUpdate}
+                disabled={isChecking() || isUpdating()}
+              >
+                {isChecking() ? "Checking..." : "Check Now"}
+              </button>
             </div>
 
             {/* Current version */}
@@ -387,40 +367,22 @@ export default function ClientsTab(props: ClientsTabProps) {
               })()}
             />
 
-            {/* Latest version + check button */}
-            <div class="sg-row">
-              <span class="sg-row-label">Latest</span>
-              <span class="sg-row-value" style={{ display: "flex", "align-items": "center", gap: "8px" }}>
-                <Show when={updateCheck()?.latest_version} fallback="—">
-                  <span classList={{
-                    "sg-text-success": !updateCheck()?.update_available,
-                    "sg-text-warning": updateCheck()?.update_available,
-                  }}>
-                    {updateCheck()?.latest_version}
-                  </span>
-                  <Show when={!updateCheck()?.update_available}>
-                    <span style={{ "font-size": "11px", opacity: 0.6 }}>Up to date</span>
-                  </Show>
-                </Show>
-                <button
-                  class="sg-launch-btn"
-                  style={{ "margin-left": "auto", "font-size": "11px", padding: "2px 10px" }}
-                  onClick={checkForUpdate}
-                  disabled={isChecking() || isUpdating()}
-                >
-                  {isChecking() ? "Checking..." : "Check Now"}
-                </button>
-              </span>
-            </div>
+            {/* Changelog — stable + snapshot entries */}
+            <Show when={updateCheck()}>
+              <Show when={updateCheck()!.release_notes.length > 0 || updateCheck()!.snapshot}>
+                <Changelog notes={updateCheck()!.release_notes} snapshot={updateCheck()!.snapshot} />
+              </Show>
 
-            {/* Changelog */}
-            <Show when={updateCheck()?.update_available && updateCheck()!.release_notes.length > 0}>
-              <Changelog notes={updateCheck()!.release_notes} snapshot={updateCheck()!.snapshot} />
+              <Show when={!updateCheck()!.update_available && !updateCheck()!.snapshot?.newer_than_stable}>
+                <div style={{ padding: "8px 0", "font-size": "12px", color: "var(--sg-section-label)", "text-align": "center" }}>
+                  You're on the latest stable version
+                </div>
+              </Show>
             </Show>
 
             {/* Progress bar during update */}
             <Show when={isUpdating() && updateProgress()}>
-              <div style={{ margin: "8px 72px" }}>
+              <div style={{ margin: "8px 0" }}>
                 <Show when={updateProgress()!.percent !== null}>
                   <div style={{
                     height: "4px",
@@ -447,7 +409,7 @@ export default function ClientsTab(props: ClientsTabProps) {
             {/* Update result */}
             <Show when={updateResult()}>
               <div style={{
-                margin: "8px 72px",
+                margin: "8px 0",
                 "font-size": "12px",
                 color: updateResult()!.success ? "oklch(var(--su))" : "#f87171",
               }}>
@@ -466,15 +428,25 @@ export default function ClientsTab(props: ClientsTabProps) {
               </div>
             </Show>
 
-            {/* Update button */}
-            <Show when={updateCheck()?.update_available && !isUpdating() && !updateResult()?.success}>
-              <div class="sg-row" style={{ "justify-content": "center" }}>
-                <button
-                  class="sg-launch-btn sg-launch-btn-primary"
-                  onClick={performUpdate}
-                >
-                  Update to {updateCheck()!.latest_version}
-                </button>
+            {/* Dual update buttons */}
+            <Show when={!isUpdating() && !updateResult()?.success && updateCheck()}>
+              <div style={{ display: "flex", "justify-content": "center", gap: "10px", padding: "4px 0" }}>
+                <Show when={updateCheck()!.update_available}>
+                  <button
+                    class="sg-launch-btn sg-launch-btn-primary"
+                    onClick={() => performUpdate("stable")}
+                  >
+                    Update to {updateCheck()!.latest_version}
+                  </button>
+                </Show>
+                <Show when={updateCheck()!.snapshot?.available}>
+                  <button
+                    class="sg-launch-btn sg-launch-btn-snapshot"
+                    onClick={() => performUpdate("snapshot")}
+                  >
+                    Snapshot {updateCheck()!.snapshot!.commit}
+                  </button>
+                </Show>
               </div>
             </Show>
           </div>

@@ -1133,7 +1133,19 @@ input[type="number"] {
 .sg-text-success { color: oklch(var(--su)); }
 .sg-text-warning { color: oklch(var(--wa)); }
 
-/* Snapshot (nightly) entries — orange accent */
+/* Stable entries — primary/purple accent */
+
+.sg-changelog-version-stable {
+  color: oklch(var(--p)) !important;
+}
+
+.sg-changelog-channel-badge-stable {
+  color: oklch(var(--p));
+  background: color-mix(in oklch, oklch(var(--p)) 10%, transparent);
+  border-color: color-mix(in oklch, oklch(var(--p)) 20%, transparent);
+}
+
+/* Snapshot (nightly) entries — orange/warning accent */
 
 .sg-changelog-version-snapshot {
   color: oklch(var(--wa)) !important;
@@ -1153,4 +1165,14 @@ input[type="number"] {
 
 .sg-changelog-snapshot .sg-changelog-header:hover {
   background: color-mix(in oklch, oklch(var(--wa)) 8%, transparent);
+}
+
+/* Snapshot update button — orange variant */
+.sg-launch-btn-snapshot {
+  color: oklch(var(--wa)) !important;
+  border-color: color-mix(in oklch, oklch(var(--wa)) 40%, var(--sg-stat-border)) !important;
+}
+
+.sg-launch-btn-snapshot:hover {
+  background: color-mix(in oklch, oklch(var(--wa)) 12%, transparent) !important;
 }

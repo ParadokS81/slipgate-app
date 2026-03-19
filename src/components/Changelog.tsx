@@ -100,12 +100,18 @@ function ReleaseAccordion(props: { release: ParsedRelease; defaultOpen: boolean 
         </span>
         <span
           class="sg-changelog-version"
-          classList={{ "sg-changelog-version-snapshot": isSnapshot() }}
+          classList={{
+            "sg-changelog-version-stable": !isSnapshot(),
+            "sg-changelog-version-snapshot": isSnapshot(),
+          }}
         >
           {props.release.version}
         </span>
         <Show when={isSnapshot()}>
           <span class="sg-changelog-channel-badge">snapshot</span>
+        </Show>
+        <Show when={!isSnapshot()}>
+          <span class="sg-changelog-channel-badge sg-changelog-channel-badge-stable">stable</span>
         </Show>
         <span class="sg-changelog-date">{props.release.date}</span>
         <span class="sg-changelog-summary">
@@ -131,8 +137,8 @@ export default function Changelog(props: ChangelogProps) {
   const parsed = (): ParsedRelease[] => {
     const stableNotes = props.notes.map(preprocessNote);
 
-    // If there's a snapshot newer than stable, prepend it
-    if (props.snapshot?.available && props.snapshot.newer_than_stable) {
+    // Always show snapshot if available
+    if (props.snapshot?.available) {
       const snapshotEntry: ParsedRelease = {
         version: props.snapshot.commit,
         date: new Date(props.snapshot.date).toLocaleDateString("en-US", {
