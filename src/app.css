@@ -1008,3 +1008,117 @@ input[type="number"] {
   border-color: color-mix(in oklch, var(--color-warning) 30%, var(--sg-stat-border));
   opacity: 0.8;
 }
+
+/* ============================================================
+   Changelog — accordion viewer for release notes
+   ============================================================ */
+
+.sg-changelog {
+  border-radius: 4px;
+  border: 1px solid var(--sg-stat-border);
+  background: color-mix(in oklch, var(--sg-stat-border) 10%, transparent);
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.sg-changelog-release + .sg-changelog-release {
+  border-top: 1px solid var(--sg-stat-border);
+}
+
+.sg-changelog-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.sg-changelog-header:hover {
+  background: color-mix(in oklch, var(--sg-stat-border) 20%, transparent);
+}
+
+.sg-changelog-chevron {
+  color: var(--sg-section-label);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.sg-changelog-version {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--sg-text-bright);
+}
+
+.sg-changelog-date {
+  font-size: 11px;
+  color: var(--sg-section-label);
+}
+
+.sg-changelog-summary {
+  font-size: 11px;
+  color: var(--sg-text-dim);
+  margin-left: auto;
+}
+
+.sg-changelog-body {
+  padding: 4px 16px 12px 34px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--sg-text-dim);
+}
+
+/* Markdown rendered elements inside changelog body */
+
+.sg-changelog-body h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sg-text-bright);
+  margin: 10px 0 4px;
+  padding: 0;
+}
+
+.sg-changelog-body h3:first-child {
+  margin-top: 0;
+}
+
+.sg-changelog-body ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 4px;
+}
+
+.sg-changelog-body li {
+  padding: 2px 0;
+  position: relative;
+  padding-left: 14px;
+}
+
+.sg-changelog-body li::before {
+  content: "•";
+  position: absolute;
+  left: 2px;
+  color: var(--sg-section-label);
+}
+
+.sg-changelog-body p {
+  margin: 4px 0;
+}
+
+.sg-changelog-body code {
+  font-size: 11px;
+  background: color-mix(in oklch, var(--sg-stat-border) 25%, transparent);
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.sg-changelog-body a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+
+.sg-changelog-body a:hover {
+  text-decoration: underline;
+}

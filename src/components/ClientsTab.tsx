@@ -6,6 +6,7 @@ import { ArrowLeft, HardDrive, Crosshair, Monitor, Rocket, Download } from "luci
 import type { EzQuakeInstallation, EzQuakeConfig, MonitorInfo, UpdateCheckResult, UpdateProgress, UpdateResult } from "../types";
 import type { ProfileData } from "../store";
 import { getPrimarySetup, updatePrimaryClient } from "../store";
+import Changelog from "./Changelog";
 
 interface ClientsTabProps {
   onConfigLoaded?: (config: EzQuakeConfig, exePath: string, configName: string, version: string | null) => void;
@@ -414,32 +415,8 @@ export default function ClientsTab(props: ClientsTabProps) {
 
             {/* Changelog */}
             <Show when={updateCheck()?.update_available && updateCheck()!.release_notes.length > 0}>
-              <div style={{
-                "max-height": "200px",
-                "overflow-y": "auto",
-                "font-size": "12px",
-                color: "var(--sg-text-dim)",
-                padding: "8px 12px",
-                background: "color-mix(in oklch, var(--sg-stat-border) 15%, transparent)",
-                "border-radius": "4px",
-                margin: "8px 72px 8px 72px",
-                border: "1px solid var(--sg-stat-border)",
-              }}>
-                <For each={updateCheck()!.release_notes}>
-                  {(note) => (
-                    <div style={{ "margin-bottom": "8px" }}>
-                      <div style={{ "font-weight": "600", color: "var(--sg-text-bright)" }}>
-                        {note.version}
-                        <span style={{ "font-size": "11px", "margin-left": "8px", color: "var(--sg-section-label)", "font-weight": "400" }}>
-                          {note.published_at ? new Date(note.published_at).toLocaleDateString() : ""}
-                        </span>
-                      </div>
-                      <div style={{ "white-space": "pre-wrap", "margin-top": "4px", "line-height": "1.4" }}>
-                        {note.body}
-                      </div>
-                    </div>
-                  )}
-                </For>
+              <div style={{ margin: "8px 0", "max-height": "300px", "overflow-y": "auto" }}>
+                <Changelog notes={updateCheck()!.release_notes} />
               </div>
             </Show>
 
