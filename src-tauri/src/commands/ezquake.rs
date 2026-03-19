@@ -690,19 +690,11 @@ fn analyze_weapon_binds(
         .count();
     let mouse1_is_primary_fire = mouse1_rebind_count >= 2;
 
-    // Deduplicate: keep only one bind per weapon (prefer quickfire over manual)
-    let mut seen = HashMap::new();
-    for wb in &weapon_binds {
-        // Skip Mouse1's own bind if it's a primary fire button
-        if mouse1_is_primary_fire && wb.key == "Mouse1" {
-            continue;
-        }
-        let entry = seen.entry(wb.weapon.clone()).or_insert_with(|| wb.clone());
-        if wb.method == "quickfire" && entry.method != "quickfire" {
-            *entry = wb.clone();
-        }
-    }
-    let mut result: Vec<WeaponBind> = seen.into_values().collect();
+    // Keep all binds per weapon (a player may have multiple binds for the same weapon).
+    // Just filter out Mouse1 if it's a primary fire button.
+    let mut result: Vec<WeaponBind> = weapon_binds.into_iter()
+        .filter(|wb| !(mouse1_is_primary_fire && wb.key == "Mouse1"))
+        .collect();
 
     // Sort by weapon order: rl, lg, gl, sng, ng, ssg, sg, axe
     let order = ["rl", "lg", "gl", "sng", "ng", "ssg", "sg", "axe"];
