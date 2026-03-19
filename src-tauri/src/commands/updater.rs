@@ -57,6 +57,13 @@ pub struct ReleaseNote {
 }
 
 #[derive(Serialize, Clone)]
+pub struct SnapshotCommit {
+    pub sha: String,
+    pub message: String,
+    pub date: String,
+}
+
+#[derive(Serialize, Clone)]
 pub struct SnapshotInfo {
     pub available: bool,
     pub filename: String,
@@ -65,6 +72,8 @@ pub struct SnapshotInfo {
     pub download_url: String,
     pub checksum_url: String,
     pub newer_than_stable: bool,
+    pub commits_since_stable: Vec<SnapshotCommit>,
+    pub ahead_by: u32,
 }
 
 #[derive(Serialize, Clone)]
@@ -176,10 +185,72 @@ fn parse_snapshot_filename(filename: &str) -> Option<(String, String)> {
     None
 }
 
+/// Fetch commits between a stable tag and a snapshot commit via GitHub compare API
+async fn fetch_commits_since_stable(
+    client: &ClientDef,
+    stable_tag: &str,
+    snapshot_commit: &str,
+) -> Result<(Vec<SnapshotCommit>, u32), String> {
+    let url = format!(
+        "https://api.github.com/repos/{}/{}/compare/{}...{}",
+        client.github_owner, client.github_repo, stable_tag, snapshot_commit
+    );
+
+    let http = reqwest::Client::new();
+    let resp = http
+        .get(&url)
+        .header(USER_AGENT, "slipgate-app/0.1")
+        .send()
+        .await
+        .map_err(|e| format!("Compare API error: {}", e))?;
+
+    if !resp.status().is_success() {
+        return Ok((vec![], 0)); // Non-fatal — just show no commits
+    }
+
+    let json: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Compare parse error: {}", e))?;
+
+    let ahead_by = json["ahead_by"].as_u64().unwrap_or(0) as u32;
+
+    let commits = json["commits"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .map(|c| {
+                    let sha = c["sha"]
+                        .as_str()
+                        .unwrap_or("")
+                        .chars()
+                        .take(7)
+                        .collect::<String>();
+                    let message = c["commit"]["message"]
+                        .as_str()
+                        .unwrap_or("")
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .to_string();
+                    let date = c["commit"]["author"]["date"]
+                        .as_str()
+                        .unwrap_or("")
+                        .to_string();
+                    SnapshotCommit { sha, message, date }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok((commits, ahead_by))
+}
+
 /// Scrape latest snapshot info from builds.quakeworld.nu directory listing
 async fn fetch_latest_snapshot(
     client: &ClientDef,
     latest_stable_date: Option<&str>,
+    latest_stable_tag: Option<&str>,
 ) -> Result<SnapshotInfo, String> {
     let base_url = client
         .snapshot_url
@@ -225,11 +296,19 @@ async fn fetch_latest_snapshot(
     // Check if snapshot is newer than latest stable release
     let newer_than_stable = latest_stable_date
         .map(|stable_date| {
-            // stable_date is ISO like "2026-03-01T19:45:47Z", snapshot date is "2026-03-01"
-            let stable_short = &stable_date[..10]; // "2026-03-01"
+            let stable_short = &stable_date[..10];
             date.as_str() > stable_short
         })
         .unwrap_or(true);
+
+    // Fetch commits between stable tag and snapshot commit
+    let (commits_since_stable, ahead_by) = if let Some(tag) = latest_stable_tag {
+        fetch_commits_since_stable(client, tag, &commit)
+            .await
+            .unwrap_or((vec![], 0))
+    } else {
+        (vec![], 0)
+    };
 
     Ok(SnapshotInfo {
         available: true,
@@ -239,6 +318,8 @@ async fn fetch_latest_snapshot(
         download_url,
         checksum_url,
         newer_than_stable,
+        commits_since_stable,
+        ahead_by,
     })
 }
 
@@ -515,7 +596,8 @@ pub async fn check_for_update(
         // Also check for latest snapshot (non-blocking — don't fail if unavailable)
         let snapshot = if client.snapshot_url.is_some() {
             let stable_date = latest.published_at.as_deref();
-            fetch_latest_snapshot(client, stable_date).await.ok()
+            let stable_tag = Some(latest.tag_name.as_str());
+            fetch_latest_snapshot(client, stable_date, stable_tag).await.ok()
         } else {
             None
         };
@@ -533,7 +615,7 @@ pub async fn check_for_update(
         })
     } else {
         // Snapshot-only check
-        let snapshot = fetch_latest_snapshot(client, None).await?;
+        let snapshot = fetch_latest_snapshot(client, None, None).await?;
         Ok(UpdateCheckResult {
             update_available: true,
             current_version: current_version_str,

@@ -138,6 +138,12 @@ export interface ReleaseNote {
   body: string;
 }
 
+export interface SnapshotCommit {
+  sha: string;
+  message: string;
+  date: string;
+}
+
 export interface SnapshotInfo {
   available: boolean;
   filename: string;
@@ -146,6 +152,8 @@ export interface SnapshotInfo {
   download_url: string;
   checksum_url: string;
   newer_than_stable: boolean;
+  commits_since_stable: SnapshotCommit[];
+  ahead_by: number;
 }
 
 export interface UpdateCheckResult {

@@ -1,7 +1,7 @@
 import { Show, For, createSignal } from "solid-js";
 import { marked } from "marked";
 import { ChevronDown, ChevronRight } from "lucide-solid";
-import type { ReleaseNote, SnapshotInfo } from "../types";
+import type { ReleaseNote, SnapshotInfo, SnapshotCommit } from "../types";
 
 // ─── Pre-processing ────────────────────────────────────────────────────────
 
@@ -11,6 +11,7 @@ interface ParsedRelease {
   markdown: string;
   summary: { improvements: number; changes: number; bugfixes: number };
   channel: "stable" | "snapshot";
+  commits?: SnapshotCommit[];
 }
 
 /** Clean up raw release note markdown for better display */
@@ -115,18 +116,35 @@ function ReleaseAccordion(props: { release: ParsedRelease; defaultOpen: boolean 
         </Show>
         <span class="sg-changelog-date">{props.release.date}</span>
         <span class="sg-changelog-summary">
-          {isSnapshot() ? "latest dev build" : summaryText(props.release.summary)}
+          {isSnapshot()
+            ? (props.release.commits?.length
+                ? `${props.release.commits.length} commit${props.release.commits.length !== 1 ? "s" : ""} since stable`
+                : "latest dev build")
+            : summaryText(props.release.summary)}
         </span>
       </div>
 
       {/* Body — collapsible content */}
       <Show when={open()}>
-        <Show when={props.release.markdown} fallback={
-          <div class="sg-changelog-body" style={{ color: "var(--sg-section-label)", "font-style": "italic" }}>
-            Snapshot builds don't include changelogs. This is the latest development build — it may include unreleased improvements or experimental features.
-          </div>
-        }>
+        <Show when={props.release.markdown}>
           <div class="sg-changelog-body" innerHTML={renderMarkdown(props.release.markdown)} />
+        </Show>
+        <Show when={!props.release.markdown && props.release.commits && props.release.commits.length > 0}>
+          <div class="sg-changelog-body">
+            <For each={props.release.commits}>
+              {(c) => (
+                <div style={{ padding: "2px 0", display: "flex", gap: "8px", "align-items": "baseline" }}>
+                  <span style={{ "font-family": "monospace", "font-size": "11px", color: "oklch(var(--wa))", "flex-shrink": "0" }}>{c.sha}</span>
+                  <span>{c.message}</span>
+                </div>
+              )}
+            </For>
+          </div>
+        </Show>
+        <Show when={!props.release.markdown && (!props.release.commits || props.release.commits.length === 0)}>
+          <div class="sg-changelog-body" style={{ color: "var(--sg-section-label)", "font-style": "italic" }}>
+            No changes detected since the latest stable release.
+          </div>
         </Show>
       </Show>
     </div>
@@ -139,6 +157,7 @@ export default function Changelog(props: ChangelogProps) {
 
     // Always show snapshot if available
     if (props.snapshot?.available) {
+      const commitCount = props.snapshot.ahead_by || props.snapshot.commits_since_stable.length;
       const snapshotEntry: ParsedRelease = {
         version: props.snapshot.commit,
         date: new Date(props.snapshot.date).toLocaleDateString("en-US", {
@@ -149,6 +168,7 @@ export default function Changelog(props: ChangelogProps) {
         markdown: "",
         summary: { improvements: 0, changes: 0, bugfixes: 0 },
         channel: "snapshot",
+        commits: props.snapshot.commits_since_stable,
       };
       return [snapshotEntry, ...stableNotes];
     }
