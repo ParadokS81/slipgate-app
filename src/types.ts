@@ -114,6 +114,7 @@ export interface EzQuakeConfig {
   topcolor: number;
   bottomcolor: number;
   sensitivity: number;
+  lg_sensitivity: number | null;  // different sensitivity for LG, if detected
   m_yaw: number;
   m_pitch: number;
   m_accel: number;

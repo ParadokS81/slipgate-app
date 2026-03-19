@@ -367,6 +367,7 @@ pub struct EzQuakeConfig {
     pub topcolor: u8,
     pub bottomcolor: u8,
     pub sensitivity: f64,
+    pub lg_sensitivity: Option<f64>,  // different sensitivity for LG (shaft), if detected
     pub m_yaw: f64,
     pub m_pitch: f64,
     pub m_accel: f64,
@@ -714,6 +715,48 @@ fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
     let m_pitch = get_cvar(&parsed, &defaults, "m_pitch").parse::<f64>().unwrap_or(0.022);
     let m_accel = get_cvar(&parsed, &defaults, "m_accel").parse::<f64>().unwrap_or(0.0);
 
+    // Detect LG-specific sensitivity: scan aliases/binds for sensitivity changes
+    // tied to LG (weapon 8). Common patterns:
+    //   alias +lg "sensitivity .8; +fire 8 ..."
+    //   alias __lg_settings "sensitivity 2.5; ..."
+    let lg_sensitivity = {
+        let mut lg_sens: Option<f64> = None;
+        // Check all aliases that reference weapon 8 / LG
+        for (_name, cmd) in &aliases {
+            let lower = cmd.to_lowercase();
+            let has_lg = lower.contains("impulse 8") || lower.contains("weapon 8")
+                || lower.contains("+fire 8") || lower.contains("+fire_ar 8");
+            if has_lg {
+                // Look for "sensitivity X" in the same alias
+                for part in lower.split(';') {
+                    let part = part.trim();
+                    if part.starts_with("sensitivity ") {
+                        if let Ok(s) = part[12..].trim().parse::<f64>() {
+                            lg_sens = Some(s);
+                        }
+                    }
+                }
+            }
+        }
+        // Also check binds that directly use +fire 8 with sensitivity
+        for (_key, cmd) in &bindings {
+            let resolved = resolve_command(cmd, &aliases);
+            let lower = resolved.to_lowercase();
+            let has_lg = lower.contains("+fire 8") || lower.contains("+fire_ar 8");
+            if has_lg {
+                for part in lower.split(';') {
+                    let part = part.trim();
+                    if part.starts_with("sensitivity ") {
+                        if let Ok(s) = part[12..].trim().parse::<f64>() {
+                            lg_sens = Some(s);
+                        }
+                    }
+                }
+            }
+        }
+        lg_sens
+    };
+
     // fov: prefer default_fov if set (it's the "real" fov), fall back to fov
     let fov_str = if parsed.contains_key("default_fov") {
         get_cvar(&parsed, &defaults, "default_fov")
@@ -773,6 +816,7 @@ fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
         topcolor,
         bottomcolor,
         sensitivity,
+        lg_sensitivity,
         m_yaw,
         m_pitch,
         m_accel,

@@ -117,6 +117,18 @@ export default function ProfileTab(props: ProfileTabProps) {
     return null;
   });
 
+  // LG-specific cm/360 (if player uses different sensitivity for shaft)
+  const lgCm360 = createMemo(() => {
+    const lgSens = props.ezConfig?.lg_sensitivity;
+    if (!lgSens) return null;
+    const dpi = gear().dpi;
+    const yaw = parseFloat(yawInput());
+    if (dpi && lgSens > 0 && yaw && dpi > 0 && yaw > 0) {
+      return (914.4 / (dpi * lgSens * yaw)).toFixed(1);
+    }
+    return null;
+  });
+
   // Pre-fill mouse selector with auto-detected brand
   const mouseInitialQuery = createMemo(() => {
     const detected = detectedMice()[0]?.name;
@@ -373,6 +385,11 @@ export default function ProfileTab(props: ProfileTabProps) {
                   )}
                   {cm360() && (
                     <span class="sg-mouse-data-tag sg-mouse-data-highlight">{cm360()} cm/360</span>
+                  )}
+                  {lgCm360() && (
+                    <span class="sg-mouse-data-tag sg-mouse-data-highlight" title={`LG sensitivity: ${props.ezConfig?.lg_sensitivity}`}>
+                      LG {lgCm360()} cm/360
+                    </span>
                   )}
                   {invertY() !== null && (
                     <span class="sg-sens-tag" classList={{ "sg-sens-active": invertY()! }}>
