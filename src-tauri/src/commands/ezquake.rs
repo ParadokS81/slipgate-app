@@ -630,6 +630,27 @@ fn resolve_command_deep(
             } else {
                 terminals.push(part.to_string());
             }
+        } else if first_word.contains('$') {
+            // Variable in alias name (e.g. "__coming_say_$__theme").
+            // Try prefix matching: find any alias starting with the part before $.
+            if let Some(dollar_pos) = first_word.find('$') {
+                let prefix = &first_word[..dollar_pos];
+                if !prefix.is_empty() {
+                    // Find the first alias matching this prefix that we can resolve
+                    let match_found = aliases.keys()
+                        .find(|k| k.starts_with(prefix) && !k.contains('$'))
+                        .cloned();
+                    if let Some(matched_alias) = match_found {
+                        if let Some(resolved) = aliases.get(&matched_alias) {
+                            terminals.extend(resolve_command_deep(resolved, aliases, depth + 1));
+                        }
+                    } else {
+                        terminals.push(part.to_string());
+                    }
+                } else {
+                    terminals.push(part.to_string());
+                }
+            }
         } else {
             // Terminal command (not an alias) — keep it
             terminals.push(part.to_string());
@@ -965,7 +986,7 @@ fn classify_by_alias_name(name: &str) -> Option<(&'static str, &'static str, &'s
     if lower.contains("need") && lower.contains("powerup") { return Some(("status", "need/pwr", "Report needs or team powerup")); }
     if lower.contains("enemy") && lower.contains("powerup") { return Some(("enemy", "enemy pwr", "Enemy powerup")); }
     if lower.contains("report") || lower.contains("status_report") || lower.contains("status") { return Some(("status", "report", "Report status")); }
-    if lower.contains("lost") { return Some(("death", "lost", "Report death")); }
+    if lower.contains("lost") || lower.contains("left_pack") || lower.contains("lostpack") { return Some(("death", "lost", "Report death")); }
     if lower.contains("safe") { return Some(("movement", "safe", "Location safe")); }
     if lower.contains("coming") { return Some(("movement", "coming", "Coming from location")); }
     if lower.contains("help") { return Some(("orders", "help", "Request help")); }
@@ -985,6 +1006,9 @@ fn classify_by_alias_name(name: &str) -> Option<(&'static str, &'static str, &'s
     if lower.contains("waiting") || lower.contains("wait") { return Some(("movement", "waiting", "Waiting")); }
     if lower.contains("attack") { return Some(("orders", "attack", "Attack")); }
     if lower.contains("camping") || lower.contains("camp") { return Some(("movement", "camping", "Camping")); }
+    if lower.contains("get_mega") || lower.contains("getmega") { return Some(("items", "get mega", "Get mega health")); }
+    if lower == "dont" || lower == "don't" { return Some(("orders", "don't", "Don't come / stay away")); }
+    if lower.contains("focus") { return Some(("orders", "focus", "Focus / shut up")); }
 
     None
 }
@@ -1467,4 +1491,129 @@ pub fn launch_ezquake(options: LaunchOptions) -> Result<(), String> {
 
     cmd.spawn().map_err(|e| format!("Failed to launch ezQuake: {}", e))?;
     Ok(())
+}
+
+// ============================================================
+// Test harness — run with:
+//   CONFIG_PATH="C:\path\to\config.cfg" cargo test -p slipgate-app test_parse_config -- --nocapture
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_config() {
+        let config_path = match std::env::var("CONFIG_PATH") {
+            Ok(p) => p,
+            Err(_) => {
+                println!("Set CONFIG_PATH env var to test a config file.");
+                println!("Example: CONFIG_PATH=\"C:\\Games\\QuakeWorld\\QuakeWorld\\ezquake\\configs\\config.cfg\" cargo test -p slipgate-app test_parse_config -- --nocapture");
+                return;
+            }
+        };
+
+        let path = PathBuf::from(&config_path);
+        if !path.exists() {
+            println!("File not found: {}", config_path);
+            return;
+        }
+
+        // Read main config
+        let bytes = std::fs::read(&path).expect("Failed to read config file");
+        let content = String::from_utf8_lossy(&bytes).to_string();
+        let mut parsed = parse_config(&content);
+
+        println!("\n{}", "=".repeat(70));
+        println!("CONFIG: {}", config_path);
+        println!("{}", "=".repeat(70));
+
+        // Follow exec references
+        let cfg_dir = path.parent().unwrap_or(Path::new("."));
+        let game_dir = cfg_dir.parent().unwrap_or(cfg_dir);
+        let exec_refs = parsed.exec_refs.clone();
+        println!("\n--- EXEC REFS ({}) ---", exec_refs.len());
+        for exec_path in &exec_refs {
+            let candidates = [
+                game_dir.join(exec_path),
+                cfg_dir.join(exec_path),
+                game_dir.join(exec_path.trim_start_matches("configs/")),
+            ];
+            let mut found = false;
+            for candidate in &candidates {
+                if candidate.exists() {
+                    if let Ok(bytes) = std::fs::read(candidate) {
+                        let sub_content = String::from_utf8_lossy(&bytes).to_string();
+                        let sub_parsed = parse_config(&sub_content);
+                        let alias_count = sub_parsed.aliases.len();
+                        let bind_count = sub_parsed.bindings.len();
+                        for (k, v) in sub_parsed.aliases {
+                            parsed.aliases.entry(k).or_insert(v);
+                        }
+                        for binding in sub_parsed.bindings {
+                            parsed.bindings.push(binding);
+                        }
+                        println!("  [OK] {} → {} aliases, {} binds", exec_path, alias_count, bind_count);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                println!("  [--] {} (not found)", exec_path);
+            }
+        }
+
+        let config = build_config(parsed);
+
+        // Player info
+        println!("\n--- PLAYER ---");
+        println!("  Name: {}", config.player_name);
+        println!("  Team: {}", if config.team.is_empty() { "(none)" } else { &config.team });
+
+        // Movement
+        println!("\n--- MOVEMENT ---");
+        println!("  Forward:   {}", config.movement.forward);
+        println!("  Back:      {}", config.movement.back);
+        println!("  Left:      {}", config.movement.moveleft);
+        println!("  Right:     {}", config.movement.moveright);
+        println!("  Jump:      {}", config.movement.jump);
+
+        // Sensitivity
+        println!("\n--- SENSITIVITY ---");
+        println!("  sensitivity: {}", config.sensitivity);
+        println!("  m_yaw:       {}", config.m_yaw);
+        if let Some(lg) = config.lg_sensitivity {
+            println!("  LG sens:     {}", lg);
+        }
+
+        // Display
+        println!("\n--- DISPLAY ---");
+        println!("  Resolution:  {}x{}", config.vid_width, config.vid_height);
+        println!("  Refresh:     {} Hz", config.vid_displayfrequency);
+        println!("  FOV:         {}", config.fov);
+
+        // Weapon binds
+        println!("\n--- WEAPON BINDS ({}) ---", config.weapon_binds.len());
+        println!("  {:<8} {:<12} {:<10} {}", "WEAPON", "KEY", "METHOD", "FIRE KEY");
+        println!("  {}", "-".repeat(45));
+        for wb in &config.weapon_binds {
+            println!("  {:<8} {:<12} {:<10} {}",
+                wb.weapon, wb.key, wb.method,
+                wb.fire_key.as_deref().unwrap_or(""));
+        }
+
+        // Teamsay binds
+        println!("\n--- TEAMSAY BINDS ({}) ---", config.teamsay_binds.len());
+        println!("  {:<10} {:<12} {:<12} {}", "CATEGORY", "KEY", "LABEL", "DESCRIPTION");
+        println!("  {}", "-".repeat(60));
+        for tb in &config.teamsay_binds {
+            println!("  {:<10} {:<12} {:<12} {}",
+                tb.category, tb.key, tb.label, tb.description);
+        }
+
+        println!("\n{}", "=".repeat(70));
+        println!("Aliases loaded: {}", config.raw_cvars.len());
+        println!("{}\n", "=".repeat(70));
+    }
 }
