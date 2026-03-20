@@ -528,6 +528,25 @@ fn rebinds_mouse1(cmd: &str) -> bool {
     lower.contains("bind mouse1")
 }
 
+/// Extract all key rebinds from a command string.
+/// Returns Vec of (target_key_uppercase, rebound_command).
+/// e.g. "bind MOUSE1 +gl; bind CTRL +sng" → [("MOUSE1", "+gl"), ("CTRL", "+sng")]
+fn extract_rebinds(cmd: &str) -> Vec<(String, String)> {
+    let mut rebinds = Vec::new();
+    let lower = cmd.to_lowercase();
+    for part in lower.split(';') {
+        let part = part.trim();
+        if part.starts_with("bind ") {
+            let after_bind = part[5..].trim();
+            let mut parts = after_bind.splitn(2, char::is_whitespace);
+            if let (Some(key), Some(rebound)) = (parts.next(), parts.next()) {
+                rebinds.push((key.to_uppercase(), rebound.trim().to_string()));
+            }
+        }
+    }
+    rebinds
+}
+
 /// Resolve a command through aliases (one level deep, then check resolved).
 /// Returns the fully resolved command string.
 fn resolve_command(cmd: &str, aliases: &HashMap<String, String>) -> String {
@@ -570,33 +589,36 @@ fn analyze_weapon_binds(
         // Resolve through aliases (one level)
         let resolved = resolve_command(cmd, aliases);
 
-        // Priority 1: check if this bind rebinds mouse1 to a weapon
-        // e.g. "bind mouse1 +rock; weapon 2" or "shaftbind" → "bind mouse1 +shaft"
-        // But if the resolved command ALSO has +attack, it's quickfire (e.g. +boom = "weapon 2; +attack; bind mouse1 +boom")
-        if rebinds_mouse1(&resolved) || rebinds_mouse1(cmd) {
-            let check = if rebinds_mouse1(&resolved) { &resolved } else { &cmd.to_string() };
-            let lower = check.to_lowercase();
-            if let Some(pos) = lower.find("bind mouse1 ") {
-                let after = &check[pos + 12..];
-                let rebound_cmd = after.split(';').next().unwrap_or("").trim();
+        // Priority 1: check if this bind rebinds ANY key to a weapon
+        // e.g. "bind mouse1 +rock; weapon 2" or "bind MOUSE1 +gl; bind CTRL +sng; bind MWHEELUP +axe"
+        // If the resolved command ALSO has +attack, it's quickfire (e.g. +boom = "weapon 2; +attack; bind mouse1 +boom")
+        let rebinds = extract_rebinds(&resolved);
+        let raw_rebinds = extract_rebinds(cmd);
+        let all_rebinds = if !rebinds.is_empty() { &rebinds } else { &raw_rebinds };
+
+        if !all_rebinds.is_empty() {
+            let mut found_any = false;
+            for (target_key, rebound_cmd) in all_rebinds {
                 let rebound_resolved = resolve_command(rebound_cmd, aliases);
                 if let Some(wnum) = extract_weapon_number(&rebound_resolved) {
                     if let Some(wname) = impulse_to_weapon(wnum) {
                         // If the resolved alias also fires (+attack), it's quickfire
                         let is_quickfire = has_attack(&resolved);
                         has_custom_weapon_binds = true;
+                        found_any = true;
                         weapon_binds.push(WeaponBind {
                             weapon: wname.to_string(),
                             key: format_key_name(&key_upper),
                             method: if is_quickfire { "quickfire".to_string() } else { "manual".to_string() },
-                            fire_key: if is_quickfire { None } else { Some("Mouse1".to_string()) },
+                            fire_key: if is_quickfire { None } else { Some(format_key_name(target_key)) },
                         });
                     }
                 }
-                // Also check for a direct weapon in the resolved command
-                // e.g. +boom resolves to "weapon 2; +attack; bind mouse1 +boom"
-                // The weapon 2 is the primary weapon here, and it has +attack = quickfire
-                else if let Some(wnum) = extract_weapon_number(&resolved) {
+            }
+            // Also check for a direct weapon in the resolved command
+            // e.g. +boom resolves to "weapon 2; +attack; bind mouse1 +boom"
+            if !found_any {
+                if let Some(wnum) = extract_weapon_number(&resolved) {
                     if let Some(wname) = impulse_to_weapon(wnum) {
                         let is_quickfire = has_attack(&resolved);
                         has_custom_weapon_binds = true;
