@@ -1014,7 +1014,14 @@ fn classify_by_alias_name(name: &str) -> Option<(&'static str, &'static str, &'s
     if lower.contains("get_my_stuff") || lower.contains("giveaway") { return Some(("orders", "give wpn", "Give away weapon/ammo")); }
     if lower.contains("ask") && lower.contains("status") { return Some(("orders", "status?", "Ask team for status")); }
     if lower.contains("itemsoon") || lower.contains("item_soon") { return Some(("items", "item soon", "Item respawning soon")); }
-    if lower.contains("enemy_rl") { return Some(("enemy", "enemy rl", "Enemy has RL")); }
+    if lower.contains("enemy_rl") || lower.contains("rl-nme") || lower.contains("rl_nme") { return Some(("enemy", "enemy rl", "Enemy has RL")); }
+    if lower.contains("youtake") || lower.contains("you_take") { return Some(("orders", "you take", "Tell teammate to take location")); }
+    if lower.starts_with("getrl") || lower.starts_with("get_rl") { return Some(("orders", "get rl", "Get RL")); }
+    if lower.starts_with("getlg") || lower.starts_with("get_lg") { return Some(("orders", "get lg", "Get LG")); }
+    if lower.starts_with("getra") || lower.starts_with("get_ra") { return Some(("orders", "get ra", "Get RA")); }
+    if lower.starts_with("getya") || lower.starts_with("get_ya") { return Some(("orders", "get ya", "Get YA")); }
+    if lower.starts_with("getga") || lower.starts_with("get_ga") { return Some(("orders", "get ga", "Get GA")); }
+    if lower.starts_with("geth") && lower.contains("rl") { return Some(("orders", "get rl", "Get RL (high/low)")); }
 
     None
 }
