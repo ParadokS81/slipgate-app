@@ -80,6 +80,7 @@ export default function ProfileTab(props: ProfileTabProps) {
   const [showMovement, setShowMovement] = createSignal(true);
   const [showWeapons, setShowWeapons] = createSignal(false);
   const [showBindLabels, setShowBindLabels] = createSignal(false);
+  const [showWeaponIcons, setShowWeaponIcons] = createSignal(true);
   // Future: showTeambinds, showOthers
 
   // Bind visualization mode = any non-movement toggle is active
@@ -366,6 +367,18 @@ export default function ProfileTab(props: ProfileTabProps) {
                 onClick={() => setShowBindLabels(v => !v)}
                 title="Show bound functions on keyboard keys"
               >Binds</button>
+              <div class="sg-pill-toggle">
+                <button
+                  class="sg-pill-toggle-opt"
+                  classList={{ "sg-pill-toggle-active": !showWeaponIcons() }}
+                  onClick={() => setShowWeaponIcons(false)}
+                >ABC</button>
+                <button
+                  class="sg-pill-toggle-opt"
+                  classList={{ "sg-pill-toggle-active": showWeaponIcons() }}
+                  onClick={() => setShowWeaponIcons(true)}
+                >Icons</button>
+              </div>
             </div>
           </Show>
         </div>
@@ -407,14 +420,22 @@ export default function ProfileTab(props: ProfileTabProps) {
                 <div class="sg-bind-row">
                   <div class="sg-bind-row-group">
                     <span class="sg-bind-row-label">move</span>
-                    <span class="sg-bind-move">
-                      {kbBinds.map(b => `${b.arrow}${b.key}`).join("  ")}
-                      {msBinds.map(b => `${b.arrow}${b.key}`).join("  ")}
-                    </span>
+                    {kbBinds.map(b => (
+                      <span class="sg-bind-move-item">
+                        <span class="sg-bind-arrow">{b.arrow}</span>
+                        <span class="sg-keycap">{b.key}</span>
+                      </span>
+                    ))}
+                    {msBinds.map(b => (
+                      <span class="sg-bind-move-item">
+                        <span class="sg-bind-arrow">{b.arrow}</span>
+                        <span class="sg-keycap">{b.key}</span>
+                      </span>
+                    ))}
                   </div>
                   <div class="sg-bind-row-group">
                     <span class="sg-bind-row-label">jump</span>
-                    <span class="sg-bind-jump">
+                    <span class="sg-keycap sg-keycap-jump">
                       {kbJump || msJump || "--"}
                     </span>
                   </div>
@@ -518,6 +539,7 @@ export default function ProfileTab(props: ProfileTabProps) {
                       weaponBinds={props.ezConfig!.weapon_binds}
                       movement={props.ezConfig!.movement}
                       showMovement={showMovement()}
+                      showIcons={showWeaponIcons()}
                     />
                   </Show>
                 </Show>

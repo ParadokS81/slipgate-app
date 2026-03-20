@@ -257,8 +257,10 @@ export default function KeyboardLayout(props: KeyboardLayoutProps) {
           />
           <text
             x={(14 + (TOTAL_W_U - 14) / 2) * KU}
-            y={ROW_H / 2 + 3}
+            y={ROW_H / 2}
             class="sg-kb-name-label"
+            textLength={props.keyboardName!.length > 18 ? (TOTAL_W_U - 14) * KU - PAD * 2 - 16 : undefined}
+            lengthAdjust="spacingAndGlyphs"
           >
             {props.keyboardName}
           </text>

@@ -644,9 +644,10 @@ input[type="number"] {
 }
 
 .sg-kb-name-label {
-  fill: oklch(0.6 0.01 250);
-  font-size: 9px;
-  font-weight: 600;
+  fill: var(--sg-text-dim);
+  font-size: 10px;
+  font-weight: 500;
+  font-family: "Geist", system-ui, sans-serif;
   text-anchor: middle;
   dominant-baseline: central;
 }
@@ -798,11 +799,25 @@ input[type="number"] {
   letter-spacing: 0.3px;
 }
 
-.sg-bind-move {
+.sg-bind-move-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.sg-bind-arrow {
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.sg-bind-move-item .sg-keycap {
+  border-color: color-mix(in oklch, var(--color-primary) 30%, var(--sg-stat-border));
   color: var(--color-primary);
 }
 
-.sg-bind-jump {
+.sg-keycap-jump {
+  border-color: color-mix(in oklch, var(--color-success) 30%, var(--sg-stat-border));
   color: var(--color-success);
 }
 
@@ -822,7 +837,7 @@ input[type="number"] {
 .sg-bind-row-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .sg-bind-row-label {
@@ -1292,6 +1307,38 @@ input[type="number"] {
   margin: 0 2px;
 }
 
+/* Pill toggle — two-option slider (ABC | Icons) */
+.sg-pill-toggle {
+  display: flex;
+  border-radius: 3px;
+  overflow: hidden;
+  border: 1px solid var(--sg-stat-border);
+}
+
+.sg-pill-toggle-opt {
+  height: 18px;
+  padding: 0 7px;
+  border: none;
+  background: color-mix(in oklch, var(--sg-stat-border) 15%, transparent);
+  color: var(--sg-section-label);
+  font-size: 9px;
+  font-weight: 600;
+  font-family: "Geist", system-ui, sans-serif;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sg-pill-toggle-opt + .sg-pill-toggle-opt {
+  border-left: 1px solid var(--sg-stat-border);
+}
+
+.sg-pill-toggle-active {
+  background: color-mix(in oklch, var(--color-primary) 18%, transparent);
+  color: var(--color-primary);
+}
+
 /* ============================================================
    Keyboard — highlighted key (weapon bind mode, inline styles)
    ============================================================ */
@@ -1318,10 +1365,10 @@ input[type="number"] {
   align-items: center;
 }
 
-/* Mouse on the left */
+/* Mouse on the left — sized to match both weapon rows */
 .sg-weapon-grid-mouse {
   flex-shrink: 0;
-  width: 80px;
+  width: 110px;
 }
 
 /* Mouse SVG — themed from user's reference design */
@@ -1355,9 +1402,9 @@ input[type="number"] {
 .sg-weapon-cell {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
-  padding: 6px 4px;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 8px 8px;
   border-radius: 6px;
   transition: background 0.1s;
 }
@@ -1375,18 +1422,20 @@ input[type="number"] {
   background: transparent;
 }
 
-/* Weapon icon */
+/* Weapon icon — large headline, brightened to pop */
 .sg-weapon-cell-icon {
-  width: 48px;
-  height: 32px;
+  width: 80px;
+  height: 53px;
   object-fit: contain;
+  filter: brightness(1.3) saturate(1.2);
 }
 
-/* Weapon name */
+/* Weapon acronym headline (ABC mode) */
 .sg-weapon-cell-name {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   letter-spacing: 0.5px;
+  margin-bottom: 2px;
 }
 
 /* Method badge */
@@ -1422,6 +1471,24 @@ input[type="number"] {
 .sg-weapon-cell-key {
   font-weight: 600;
   color: var(--sg-text-bright);
+}
+
+/* Keycap badge — small inline key that matches keyboard SVG style */
+.sg-keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: color-mix(in oklch, var(--sg-grad-light) 60%, var(--sg-grad-dark));
+  border: 1px solid var(--sg-stat-border);
+  color: var(--sg-text-dim);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: "Geist", system-ui, sans-serif;
+  white-space: nowrap;
 }
 
 .sg-weapon-cell-arrow {

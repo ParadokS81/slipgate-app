@@ -40,6 +40,8 @@ interface WeaponBindVizProps {
   weaponBinds: WeaponBind[];
   movement?: MovementKeys;
   showMovement?: boolean;
+  /** When true, show weapon sprite icons. When false, show large colored acronyms. */
+  showIcons?: boolean;
 }
 
 export default function WeaponBindViz(props: WeaponBindVizProps) {
@@ -100,19 +102,21 @@ export default function WeaponBindViz(props: WeaponBindVizProps) {
 
             return (
               <div class="sg-weapon-cell" classList={{ "sg-weapon-cell-unbound": !bound() }}>
-                {/* Icon */}
-                <img
-                  src={`/weapons/${weapon}.png`}
-                  alt={weapon}
-                  class="sg-weapon-cell-icon"
-                />
-                {/* Name */}
-                <span
-                  class="sg-weapon-cell-name"
-                  style={bound() ? `color: ${color}` : undefined}
-                >
-                  {WEAPON_LABELS[weapon] ?? weapon.toUpperCase()}
-                </span>
+                {/* Headline: icon or large acronym (mutually exclusive) */}
+                <Show when={props.showIcons !== false} fallback={
+                  <span
+                    class="sg-weapon-cell-name"
+                    style={bound() ? `color: ${color}` : undefined}
+                  >
+                    {WEAPON_LABELS[weapon] ?? weapon.toUpperCase()}
+                  </span>
+                }>
+                  <img
+                    src={`/weapons/${weapon}.png`}
+                    alt={weapon}
+                    class="sg-weapon-cell-icon"
+                  />
+                </Show>
                 {/* Bind info (only when bound) */}
                 <Show when={primary()}>
                   {(wb) => {
@@ -126,10 +130,10 @@ export default function WeaponBindViz(props: WeaponBindVizProps) {
                           {wb().method}
                         </span>
                         <span class="sg-weapon-cell-bind">
-                          <span class="sg-weapon-cell-key">{wb().key}</span>
+                          <span class="sg-keycap">{wb().key}</span>
                           <Show when={isManual && wb().fire_key}>
                             <span class="sg-weapon-cell-arrow">&rarr;</span>
-                            <span class="sg-weapon-cell-fire">{wb().fire_key}</span>
+                            <span class="sg-keycap">{wb().fire_key}</span>
                           </Show>
                         </span>
                       </>
