@@ -1228,3 +1228,208 @@ input[type="number"] {
 .sg-launch-btn-snapshot:hover {
   background: color-mix(in oklch, oklch(var(--wa)) 12%, transparent) !important;
 }
+
+/* ============================================================
+   Input visualization toggles — numbered pills in card header
+   ============================================================ */
+
+.sg-input-toggles {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.sg-input-toggle {
+  height: 20px;
+  border-radius: 3px;
+  border: 1px solid var(--sg-stat-border);
+  background: color-mix(in oklch, var(--sg-stat-border) 20%, transparent);
+  color: var(--sg-section-label);
+  font-size: 9px;
+  font-weight: 600;
+  font-family: "Geist", system-ui, sans-serif;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  transition: all 0.15s;
+}
+
+.sg-input-toggle:hover {
+  border-color: var(--sg-section-label);
+  color: var(--sg-text-dim);
+}
+
+.sg-input-toggle-active {
+  background: color-mix(in oklch, var(--color-primary) 15%, transparent);
+  border-color: color-mix(in oklch, var(--color-primary) 40%, var(--sg-stat-border));
+  color: var(--color-primary);
+}
+
+.sg-input-toggle-active:hover {
+  background: color-mix(in oklch, var(--color-primary) 25%, transparent);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.sg-input-toggle-disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.sg-input-toggle-disabled:hover {
+  border-color: var(--sg-stat-border);
+  color: var(--sg-section-label);
+}
+
+.sg-input-toggle-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--sg-stat-border);
+  margin: 0 2px;
+}
+
+/* ============================================================
+   Keyboard — highlighted key (weapon bind mode, inline styles)
+   ============================================================ */
+
+.sg-kb-highlight {
+  stroke-width: 1.5;
+}
+
+.sg-kb-label-highlight {
+  font-weight: 700;
+}
+
+/* ============================================================
+   Weapon bind visualization — mouse SVG + bind list
+   ============================================================ */
+
+/* ============================================================
+   Weapon grid — 4x2 grid + mouse SVG (Quake HUD style)
+   ============================================================ */
+
+.sg-weapon-grid-wrap {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Mouse on the left */
+.sg-weapon-grid-mouse {
+  flex-shrink: 0;
+  width: 80px;
+}
+
+/* Mouse SVG — themed from user's reference design */
+.sg-mouse-ref {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.sg-mouse-fill {
+  fill: oklch(0.28 0.01 250);
+}
+
+.sg-mouse-detail {
+  fill: oklch(0.45 0.01 250);
+}
+
+.sg-mouse-hl {
+  transition: fill 0.2s;
+}
+
+/* 4x2 weapon grid */
+.sg-weapon-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+/* Each weapon cell */
+.sg-weapon-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+
+.sg-weapon-cell:hover {
+  background: color-mix(in oklch, var(--sg-stat-border) 20%, transparent);
+}
+
+/* Unbound weapons — greyed out */
+.sg-weapon-cell-unbound {
+  opacity: 0.2;
+}
+
+.sg-weapon-cell-unbound:hover {
+  background: transparent;
+}
+
+/* Weapon icon */
+.sg-weapon-cell-icon {
+  width: 48px;
+  height: 32px;
+  object-fit: contain;
+}
+
+/* Weapon name */
+.sg-weapon-cell-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Method badge */
+.sg-weapon-cell-method {
+  font-size: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.sg-weapon-bind-quickfire {
+  color: oklch(0.75 0.15 145);
+  background: color-mix(in oklch, oklch(0.65 0.18 145) 10%, transparent);
+  border: 1px solid color-mix(in oklch, oklch(0.65 0.18 145) 25%, transparent);
+}
+
+.sg-weapon-bind-manual {
+  color: oklch(0.65 0.1 250);
+  background: color-mix(in oklch, oklch(0.65 0.1 250) 10%, transparent);
+  border: 1px solid color-mix(in oklch, oklch(0.65 0.1 250) 25%, transparent);
+}
+
+/* Consolidated bind info: [key] → [fire] */
+.sg-weapon-cell-bind {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.sg-weapon-cell-key {
+  font-weight: 600;
+  color: var(--sg-text-bright);
+}
+
+.sg-weapon-cell-arrow {
+  color: var(--sg-text-dim);
+  font-size: 10px;
+}
+
+.sg-weapon-cell-fire {
+  font-weight: 500;
+  color: var(--sg-text-dim);
+}

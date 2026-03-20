@@ -5,8 +5,10 @@ import type { ProfileData, SetupHardware } from "../store";
 import { getPrimarySetup } from "../store";
 import { MouseSelector, MousepadSelector } from "./GearSelector";
 import WhoBanner from "./WhoBanner";
-import KeyboardLayout from "./KeyboardLayout";
+import KeyboardLayout, { toLayoutId } from "./KeyboardLayout";
+import type { KeyHighlight } from "./KeyboardLayout";
 import MouseLayout from "./MouseLayout";
+import WeaponBindViz, { WEAPON_COLORS } from "./WeaponBindViz";
 import miceData from "../data/mice.json";
 import mousepadsData from "../data/mousepads.json";
 import miceSupplement from "../data/mice-supplement.json";
@@ -73,6 +75,69 @@ export default function ProfileTab(props: ProfileTabProps) {
   const [dpiInput, setDpiInput] = createSignal("");
   const [sensInput, setSensInput] = createSignal("");
   const [yawInput, setYawInput] = createSignal("0.022");
+
+  // Input visualization toggles
+  const [showMovement, setShowMovement] = createSignal(true);
+  const [showWeapons, setShowWeapons] = createSignal(false);
+  const [showBindLabels, setShowBindLabels] = createSignal(false);
+  // Future: showTeambinds, showOthers
+
+  // Bind visualization mode = any non-movement toggle is active
+  const bindVizMode = () => showWeapons();
+
+  // Build keyboard highlights from weapon binds
+  const weaponKeyHighlights = createMemo(() => {
+    if (!showWeapons()) return new Map<string, KeyHighlight>();
+    const binds = props.ezConfig?.weapon_binds ?? [];
+    const highlights = new Map<string, KeyHighlight>();
+    for (const wb of binds) {
+      const layoutId = toLayoutId(wb.key);
+      if (layoutId) {
+        const color = WEAPON_COLORS[wb.weapon] ?? "oklch(0.5 0.05 0)";
+        highlights.set(layoutId, { color });
+      }
+    }
+    return highlights;
+  });
+
+  // Build key label overrides (physical key → bound function)
+  const WEAPON_LABELS: Record<string, string> = {
+    rl: "RL", lg: "LG", gl: "GL", sng: "SNG", ng: "NG",
+    ssg: "SSG", sg: "SG", axe: "AXE",
+  };
+  const MOVE_ARROWS: Record<string, string> = {
+    forward: "↑", back: "↓", moveleft: "←", moveright: "→",
+  };
+  const keyLabels = createMemo(() => {
+    if (!showBindLabels()) return undefined;
+    const labels = new Map<string, string>();
+    const cfg = props.ezConfig;
+    if (!cfg) return undefined;
+    // Movement labels
+    if (showMovement()) {
+      const m = cfg.movement;
+      for (const [dir, arrow] of Object.entries(MOVE_ARROWS)) {
+        const key = m[dir as keyof typeof m];
+        const id = toLayoutId(key);
+        if (id) labels.set(id, arrow);
+      }
+      const jumpId = toLayoutId(m.jump);
+      if (jumpId) labels.set(jumpId, "jump");
+    }
+    // Weapon labels
+    if (showWeapons()) {
+      for (const wb of cfg.weapon_binds) {
+        const id = toLayoutId(wb.key);
+        if (id) {
+          const existing = labels.get(id);
+          const wLabel = WEAPON_LABELS[wb.weapon] ?? wb.weapon.toUpperCase();
+          // If key already has a label (e.g. movement), combine them
+          labels.set(id, existing ? `${existing}/${wLabel}` : wLabel);
+        }
+      }
+    }
+    return labels.size > 0 ? labels : undefined;
+  });
 
   // Restore saved gear from profile store
   let profileLoaded = false;
@@ -274,6 +339,35 @@ export default function ProfileTab(props: ProfileTabProps) {
         <div class="sg-card-header">
           <Gamepad2 size={16} />
           <span>Input</span>
+          <Show when={props.ezConfig}>
+            <div class="sg-input-toggles">
+              <button
+                class="sg-input-toggle"
+                classList={{ "sg-input-toggle-active": showMovement() }}
+                onClick={() => setShowMovement(v => !v)}
+              >Movement</button>
+              <button
+                class="sg-input-toggle"
+                classList={{ "sg-input-toggle-active": showWeapons() }}
+                onClick={() => setShowWeapons(v => !v)}
+              >Weapons</button>
+              <button
+                class="sg-input-toggle sg-input-toggle-disabled"
+                disabled
+              >Teamplay</button>
+              <button
+                class="sg-input-toggle sg-input-toggle-disabled"
+                disabled
+              >Others</button>
+              <span class="sg-input-toggle-sep" />
+              <button
+                class="sg-input-toggle"
+                classList={{ "sg-input-toggle-active": showBindLabels() }}
+                onClick={() => setShowBindLabels(v => !v)}
+                title="Show bound functions on keyboard keys"
+              >Binds</button>
+            </div>
+          </Show>
         </div>
         <Show when={props.ezConfig}>
           {(() => {
@@ -300,7 +394,13 @@ export default function ProfileTab(props: ProfileTabProps) {
               <div class="sg-input-viz">
                 {/* Keyboard — full width */}
                 <div class="sg-input-viz-kb">
-                  <KeyboardLayout movement={m} keyboardName={keyboardDisplayName()} />
+                  <KeyboardLayout
+                    movement={m}
+                    keyboardName={keyboardDisplayName()}
+                    highlights={weaponKeyHighlights()}
+                    showMovement={showMovement()}
+                    keyLabels={keyLabels()}
+                  />
                 </div>
 
                 {/* Bind descriptions — compact row under keyboard */}
@@ -320,93 +420,107 @@ export default function ProfileTab(props: ProfileTabProps) {
                   </div>
                 </div>
 
-                {/* 4-card gear grid: Mouse | Mousepad | Grip | Movement */}
-                <div class="sg-gear-grid">
-                  {/* Mouse card — product photo */}
-                  <div class="sg-gear-card-wrapper">
-                    <MouseLayout
-                      movement={m}
-                      mouseImage={selectedMouseEntry()?.image}
-                      mouseName={mouseDisplayName()}
-                    />
-                  </div>
+                {/* === Gear view (movement-only mode) === */}
+                <Show when={!bindVizMode()}>
+                  {/* 4-card gear grid: Mouse | Mousepad | Grip | Movement */}
+                  <div class="sg-gear-grid">
+                    {/* Mouse card — product photo */}
+                    <div class="sg-gear-card-wrapper">
+                      <MouseLayout
+                        movement={m}
+                        mouseImage={selectedMouseEntry()?.image}
+                        mouseName={mouseDisplayName()}
+                      />
+                    </div>
 
-                  {/* Mousepad card — show specs inside */}
-                  <div class="sg-gear-card-wrapper">
-                    <div class="sg-gear-card sg-gear-card-pad">
-                      <div class="sg-gear-card-pad-inner">
-                        <span class="sg-gear-card-pad-brand">{mousepadDisplayName() || "Mousepad"}</span>
-                        <div class="sg-gear-card-pad-tags">
-                          {[
-                            selectedPadEntry()?.speed,
-                            selectedPadEntry()?.firmness,
-                            selectedPadEntry()?.surface_material,
-                          ].filter(Boolean).map(tag => (
-                            <span class="sg-gear-card-pad-tag">{tag}</span>
-                          ))}
+                    {/* Mousepad card — show specs inside */}
+                    <div class="sg-gear-card-wrapper">
+                      <div class="sg-gear-card sg-gear-card-pad">
+                        <div class="sg-gear-card-pad-inner">
+                          <span class="sg-gear-card-pad-brand">{mousepadDisplayName() || "Mousepad"}</span>
+                          <div class="sg-gear-card-pad-tags">
+                            {[
+                              selectedPadEntry()?.speed,
+                              selectedPadEntry()?.firmness,
+                              selectedPadEntry()?.surface_material,
+                            ].filter(Boolean).map(tag => (
+                              <span class="sg-gear-card-pad-tag">{tag}</span>
+                            ))}
+                          </div>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Grip style card — image has its own label */}
+                    <div class="sg-gear-card-wrapper">
+                      <div class="sg-gear-card">
+                        <img
+                          src={`/movement-grip/grip-${props.profile ? getPrimarySetup(props.profile).hardware.grip_style || "claw" : "claw"}.png`}
+                          alt="Grip style"
+                          class="sg-gear-card-illustration"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Movement style card — image has its own label */}
+                    <div class="sg-gear-card-wrapper">
+                      <div class="sg-gear-card">
+                        <img
+                          src={`/movement-grip/movement-${props.profile ? getPrimarySetup(props.profile).hardware.aim_style || "wrist" : "wrist"}.png`}
+                          alt="Aim style"
+                          class="sg-gear-card-illustration"
+                        />
                       </div>
                     </div>
                   </div>
 
-                  {/* Grip style card — image has its own label */}
-                  <div class="sg-gear-card-wrapper">
-                    <div class="sg-gear-card">
-                      <img
-                        src={`/movement-grip/grip-${props.profile ? getPrimarySetup(props.profile).hardware.grip_style || "claw" : "claw"}.png`}
-                        alt="Grip style"
-                        class="sg-gear-card-illustration"
-                      />
-                    </div>
+                  {/* Mouse data row — brand/model, specs, sensitivity */}
+                  <div class="sg-mouse-data-row">
+                    {mouseDisplayName() && (
+                      <span class="sg-mouse-data-name">{mouseDisplayName()}</span>
+                    )}
+                    {selectedMouseEntry()?.weight && (
+                      <span class="sg-mouse-data-tag">{selectedMouseEntry()!.weight}g</span>
+                    )}
+                    {selectedMouseEntry()?.wireless != null && (
+                      <span class="sg-mouse-data-tag">{selectedMouseEntry()!.wireless ? "wireless" : "wired"}</span>
+                    )}
+                    {cm360() && (
+                      <span class="sg-mouse-data-tag sg-mouse-data-highlight">{cm360()} cm/360</span>
+                    )}
+                    {lgCm360() && (
+                      <span class="sg-mouse-data-tag sg-mouse-data-highlight" title={`LG sensitivity: ${props.ezConfig?.lg_sensitivity}`}>
+                        LG {lgCm360()} cm/360
+                      </span>
+                    )}
+                    {invertY() !== null && (
+                      <span class="sg-sens-tag" classList={{ "sg-sens-active": invertY()! }}>
+                        invert {invertY() ? "ON" : "OFF"}
+                      </span>
+                    )}
+                    {hasAccel() !== null && (
+                      <span class="sg-sens-tag" classList={{ "sg-sens-active": hasAccel()! }}>
+                        accel {hasAccel() ? "ON" : "OFF"}
+                      </span>
+                    )}
+                    {mPitchDisplay() && (
+                      <span class="sg-sens-tag sg-sens-active">
+                        m_pitch {mPitchDisplay()}
+                      </span>
+                    )}
                   </div>
+                </Show>
 
-                  {/* Movement style card — image has its own label */}
-                  <div class="sg-gear-card-wrapper">
-                    <div class="sg-gear-card">
-                      <img
-                        src={`/movement-grip/movement-${props.profile ? getPrimarySetup(props.profile).hardware.aim_style || "wrist" : "wrist"}.png`}
-                        alt="Aim style"
-                        class="sg-gear-card-illustration"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Mouse data row — brand/model, specs, sensitivity */}
-                <div class="sg-mouse-data-row">
-                  {mouseDisplayName() && (
-                    <span class="sg-mouse-data-name">{mouseDisplayName()}</span>
-                  )}
-                  {selectedMouseEntry()?.weight && (
-                    <span class="sg-mouse-data-tag">{selectedMouseEntry()!.weight}g</span>
-                  )}
-                  {selectedMouseEntry()?.wireless != null && (
-                    <span class="sg-mouse-data-tag">{selectedMouseEntry()!.wireless ? "wireless" : "wired"}</span>
-                  )}
-                  {cm360() && (
-                    <span class="sg-mouse-data-tag sg-mouse-data-highlight">{cm360()} cm/360</span>
-                  )}
-                  {lgCm360() && (
-                    <span class="sg-mouse-data-tag sg-mouse-data-highlight" title={`LG sensitivity: ${props.ezConfig?.lg_sensitivity}`}>
-                      LG {lgCm360()} cm/360
-                    </span>
-                  )}
-                  {invertY() !== null && (
-                    <span class="sg-sens-tag" classList={{ "sg-sens-active": invertY()! }}>
-                      invert {invertY() ? "ON" : "OFF"}
-                    </span>
-                  )}
-                  {hasAccel() !== null && (
-                    <span class="sg-sens-tag" classList={{ "sg-sens-active": hasAccel()! }}>
-                      accel {hasAccel() ? "ON" : "OFF"}
-                    </span>
-                  )}
-                  {mPitchDisplay() && (
-                    <span class="sg-sens-tag sg-sens-active">
-                      m_pitch {mPitchDisplay()}
-                    </span>
-                  )}
-                </div>
+                {/* === Bind visualization mode (weapons/teambinds/others) === */}
+                <Show when={bindVizMode()}>
+                  <Show when={showWeapons() && (props.ezConfig?.weapon_binds?.length ?? 0) > 0}>
+                    <WeaponBindViz
+                      weaponBinds={props.ezConfig!.weapon_binds}
+                      movement={props.ezConfig!.movement}
+                      showMovement={showMovement()}
+                    />
+                  </Show>
+                </Show>
               </div>
             );
           })()}
