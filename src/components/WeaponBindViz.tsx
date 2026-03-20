@@ -42,6 +42,8 @@ interface WeaponBindVizProps {
   showMovement?: boolean;
   /** When true, show weapon sprite icons. When false, show large colored acronyms. */
   showIcons?: boolean;
+  /** Extra mouse button highlights (e.g. from teamsay binds). Won't override weapon/movement. */
+  extraMouseHighlights?: MouseHighlights;
 }
 
 export default function WeaponBindViz(props: WeaponBindVizProps) {
@@ -77,6 +79,14 @@ export default function WeaponBindViz(props: WeaponBindVizProps) {
         const fireBtn = toMouseButton(wb.fire_key);
         if (fireBtn && !hl[fireBtn]) {
           hl[fireBtn] = "oklch(0.55 0.06 250)"; // neutral fire button
+        }
+      }
+    }
+    // Extra highlights (teamsay etc.) — don't override existing
+    if (props.extraMouseHighlights) {
+      for (const [key, color] of Object.entries(props.extraMouseHighlights)) {
+        if (!hl[key as keyof MouseHighlights]) {
+          hl[key as keyof MouseHighlights] = color;
         }
       }
     }

@@ -281,7 +281,14 @@ export default function KeyboardLayout(props: KeyboardLayoutProps) {
               y={rowY(k.row) + ROW_H / 2 + 4}
               class={labelClass(k.id)}
               style={labelStyle(k.id)}
-              font-size={props.keyLabels?.has(k.id) && (props.keyLabels.get(k.id)!.length > 3) ? "7" : undefined}
+              font-size={(() => {
+                const label = props.keyLabels?.get(k.id);
+                if (!label) return undefined;
+                if (label.length > 7) return "5.5";
+                if (label.length > 4) return "6.5";
+                if (label.length > 3) return "7";
+                return undefined;
+              })()}
             >
               {props.keyLabels?.get(k.id) ?? k.label}
             </text>
