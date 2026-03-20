@@ -1009,6 +1009,12 @@ fn classify_by_alias_name(name: &str) -> Option<(&'static str, &'static str, &'s
     if lower.contains("get_mega") || lower.contains("getmega") { return Some(("items", "get mega", "Get mega health")); }
     if lower == "dont" || lower == "don't" { return Some(("orders", "don't", "Don't come / stay away")); }
     if lower.contains("focus") { return Some(("orders", "focus", "Focus / shut up")); }
+    if lower.contains("timer") && lower.contains("say") { return Some(("items", "timer", "Item timer callout")); }
+    if lower.contains("sync") { return Some(("orders", "sync", "Sync attack")); }
+    if lower.contains("get_my_stuff") || lower.contains("giveaway") { return Some(("orders", "give wpn", "Give away weapon/ammo")); }
+    if lower.contains("ask") && lower.contains("status") { return Some(("orders", "status?", "Ask team for status")); }
+    if lower.contains("itemsoon") || lower.contains("item_soon") { return Some(("items", "item soon", "Item respawning soon")); }
+    if lower.contains("enemy_rl") { return Some(("enemy", "enemy rl", "Enemy has RL")); }
 
     None
 }
@@ -1019,7 +1025,8 @@ fn analyze_teamsay_binds(
     aliases: &HashMap<String, String>,
 ) -> Vec<TeamsayBind> {
     let mut teamsay_binds = Vec::new();
-    let mut seen_keys = std::collections::HashSet::new();
+    // Track last-seen bind per key (ezQuake: last bind wins)
+    let mut seen_keys = std::collections::HashMap::<String, usize>::new();
 
     for (key, cmd) in bindings {
         let key_upper = key.to_uppercase();
@@ -1038,77 +1045,54 @@ fn analyze_teamsay_binds(
 
             let first_word = part.split_whitespace().next().unwrap_or(part);
 
+            // Classify this bind part
+            let classification: Option<(&str, &str, &str)>;
+
             // Check 1: direct tp_msg* command
-            if let Some((cat, label, desc)) = classify_tp_msg(first_word) {
-                let key_display = format_key_name(&key_upper);
-                if seen_keys.insert(key_display.clone()) {
-                    teamsay_binds.push(TeamsayBind {
-                        key: key_display,
-                        category: cat.to_string(),
-                        label: label.to_string(),
-                        description: desc.to_string(),
-                    });
-                }
-                continue;
+            if let Some(c) = classify_tp_msg(first_word) {
+                classification = Some(c);
             }
-
             // Check 2: direct say_team command
-            if part.to_lowercase().starts_with("say_team ") {
-                let key_display = format_key_name(&key_upper);
-                if seen_keys.insert(key_display.clone()) {
-                    let (cat, label, desc) = classify_say_team(&[part.to_string()])
-                        .unwrap_or(("custom", "say_team", "Custom team message"));
-                    teamsay_binds.push(TeamsayBind {
-                        key: key_display,
-                        category: cat.to_string(),
-                        label: label.to_string(),
-                        description: desc.to_string(),
-                    });
-                }
-                continue;
+            else if part.to_lowercase().starts_with("say_team ") {
+                classification = classify_say_team(&[part.to_string()])
+                    .or(Some(("custom", "say_team", "Custom team message")));
             }
-
             // Check 3: resolve through alias chains
-            let terminals = resolve_command_deep(part, aliases, 0);
-            let has_say_team = terminals.iter().any(|t| t.to_lowercase().starts_with("say_team"));
-            let has_tp_msg = terminals.iter().any(|t| {
-                let lower = t.to_lowercase();
-                lower.starts_with("tp_msg")
-            });
+            else {
+                let terminals = resolve_command_deep(part, aliases, 0);
+                let has_say_team = terminals.iter().any(|t| t.to_lowercase().starts_with("say_team"));
+                let has_tp_msg = terminals.iter().any(|t| t.to_lowercase().starts_with("tp_msg"));
 
-            if has_say_team || has_tp_msg {
-                let key_display = format_key_name(&key_upper);
-                if seen_keys.insert(key_display.clone()) {
-                    // Priority 1: classify by the top-level alias name.
-                    // This is the most reliable signal because alias names like
-                    // __safe, __coming, __help describe the PRIMARY purpose.
-                    // Terminal analysis picks up death fallbacks (if dead then __lost)
-                    // which almost every teamsay alias has.
+                if has_say_team || has_tp_msg {
                     let by_name = classify_by_alias_name(first_word);
-
-                    // Priority 2: tp_msg command in terminals
                     let by_tp_msg = terminals.iter()
                         .filter_map(|t| classify_tp_msg(t.split_whitespace().next().unwrap_or(t)))
                         .next();
+                    let by_content = if has_say_team { classify_say_team(&terminals) } else { None };
 
-                    // Priority 3: say_team content analysis (least reliable due to branch merging)
-                    let by_content = if has_say_team {
-                        classify_say_team(&terminals)
-                    } else {
-                        None
-                    };
-
-                    let (cat, label, desc) = by_name
+                    classification = Some(by_name
                         .or(by_tp_msg)
                         .or(by_content)
-                        .unwrap_or(("custom", "say_team", "Team communication"));
+                        .unwrap_or(("custom", "say_team", "Team communication")));
+                } else {
+                    classification = None;
+                }
+            }
 
-                    teamsay_binds.push(TeamsayBind {
-                        key: key_display,
-                        category: cat.to_string(),
-                        label: label.to_string(),
-                        description: desc.to_string(),
-                    });
+            if let Some((cat, label, desc)) = classification {
+                let key_display = format_key_name(&key_upper);
+                let bind = TeamsayBind {
+                    key: key_display.clone(),
+                    category: cat.to_string(),
+                    label: label.to_string(),
+                    description: desc.to_string(),
+                };
+                // Last bind wins (ezQuake processes top-to-bottom)
+                if let Some(&idx) = seen_keys.get(&key_display) {
+                    teamsay_binds[idx] = bind;
+                } else {
+                    seen_keys.insert(key_display, teamsay_binds.len());
+                    teamsay_binds.push(bind);
                 }
             }
         }
