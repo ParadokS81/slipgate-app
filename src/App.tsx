@@ -65,12 +65,18 @@ function App() {
           configName: cfgName,
         });
         setEzConfig(cfg);
+        const m = cfg.movement;
+        console.log("=== MOVEMENT ===");
+        console.log(`  ↑${m.forward}  ←${m.moveleft}  ↓${m.back}  →${m.moveright}  jump:${m.jump}`);
         if (cfg.weapon_binds?.length) {
           console.log("=== WEAPON BINDS ===");
           for (const wb of cfg.weapon_binds) {
             const method = wb.method === "quickfire" ? "⚡ quickfire" : `🎯 manual → ${wb.fire_key}`;
             console.log(`  ${wb.weapon.toUpperCase().padEnd(4)} ${wb.key.padEnd(10)} ${method}`);
           }
+        }
+        if (cfg.lg_sensitivity) {
+          console.log(`=== LG SENSITIVITY === ${cfg.lg_sensitivity} (base: ${cfg.sensitivity})`);
         }
       }
     } catch (e) {

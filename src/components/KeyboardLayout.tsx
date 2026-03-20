@@ -117,13 +117,13 @@ const LAYOUT: KeyDef[] = [
   { id: "RightArrow", label: "→", x: ARR_X + 2, w: 1, row: 5 },
 ];
 
-// Fast lookup by ID
-const KEY_BY_ID = new Map(LAYOUT.map(k => [k.id, k]));
+// Fast lookup by ID (used by consumers)
+export const KEY_BY_ID = new Map(LAYOUT.map(k => [k.id, k]));
 
 /* ─── Key name mapping ──────────────────────────────────────────────────── */
 
-// Map ezQuake config key names → layout IDs.  Returns null for mouse buttons.
-function toLayoutId(key: string): string | null {
+/** Map ezQuake config key names → layout IDs.  Returns null for mouse buttons. */
+export function toLayoutId(key: string): string | null {
   if (key.startsWith("Mouse") || key.startsWith("MWheel")) return null;
 
   const map: Record<string, string> = {
@@ -176,9 +176,19 @@ function rowY(row: number): number {
 
 /* ─── Component ─────────────────────────────────────────────────────────── */
 
+export interface KeyHighlight {
+  color: string;   // OKLCH color string
+}
+
 interface KeyboardLayoutProps {
   movement: MovementKeys;
   keyboardName?: string | null;
+  /** Per-key highlights (key layout ID → color). Overrides movement highlights when present. */
+  highlights?: Map<string, KeyHighlight>;
+  /** When true, movement keys are dimmed instead of highlighted (bind viz mode). */
+  showMovement?: boolean;
+  /** Per-key label overrides (key layout ID → display label). Shows bound function instead of physical key. */
+  keyLabels?: Map<string, string>;
 }
 
 export default function KeyboardLayout(props: KeyboardLayoutProps) {
@@ -194,63 +204,90 @@ export default function KeyboardLayout(props: KeyboardLayoutProps) {
     return { moveIds, jumpId };
   });
 
-  // Full keyboard viewBox — show entire layout
-  const viewBox = createMemo(() => {
-    const { moveIds, jumpId } = resolved();
-    if (moveIds.size === 0 && !jumpId) return null;
-    return `0 0 ${TOTAL_W_U * KU} ${TOTAL_H}`;
-  });
+  // Always show the keyboard when we have data
+  const viewBox = `0 0 ${TOTAL_W_U * KU} ${TOTAL_H}`;
+
+  const showMovement = () => props.showMovement !== false; // default true
 
   const keyClass = (id: string) => {
-    const { moveIds, jumpId } = resolved();
-    if (id === jumpId) return "sg-kb-key sg-kb-jump";
-    if (moveIds.has(id)) return "sg-kb-key sg-kb-move";
+    // Custom highlights take precedence
+    if (props.highlights?.has(id)) return "sg-kb-key sg-kb-highlight";
+    // Movement highlights only when showMovement is on
+    if (showMovement()) {
+      const { moveIds, jumpId } = resolved();
+      if (id === jumpId) return "sg-kb-key sg-kb-jump";
+      if (moveIds.has(id)) return "sg-kb-key sg-kb-move";
+    }
     return "sg-kb-key";
   };
 
+  const keyStyle = (id: string): string | undefined => {
+    const hl = props.highlights?.get(id);
+    if (!hl) return undefined;
+    return `fill: color-mix(in oklch, ${hl.color} 35%, var(--sg-grad-dark)); stroke: color-mix(in oklch, ${hl.color} 50%, var(--sg-stat-border));`;
+  };
+
+  const labelClass = (id: string) => {
+    if (props.highlights?.has(id)) return "sg-kb-label sg-kb-label-highlight";
+    if (showMovement()) {
+      if (resolved().moveIds.has(id)) return "sg-kb-label sg-kb-label-move";
+      if (id === resolved().jumpId) return "sg-kb-label sg-kb-label-jump";
+    }
+    return "sg-kb-label";
+  };
+
+  const labelStyle = (id: string): string | undefined => {
+    const hl = props.highlights?.get(id);
+    if (!hl) return undefined;
+    return `fill: ${hl.color}; font-weight: 700;`;
+  };
+
   return (
-    <Show when={viewBox()}>
-      <div class="sg-keyboard-container">
-        <svg viewBox={viewBox()!} xmlns="http://www.w3.org/2000/svg">
-          {/* Keyboard name — same 0.25u gap as between F-key groups */}
-          <Show when={props.keyboardName}>
+    <div class="sg-keyboard-container">
+      <svg viewBox={viewBox} xmlns="http://www.w3.org/2000/svg">
+        {/* Keyboard name — same 0.25u gap as between F-key groups */}
+        <Show when={props.keyboardName}>
+          <rect
+            x={14 * KU + PAD}
+            y={PAD}
+            width={(TOTAL_W_U - 14) * KU - PAD * 2}
+            height={ROW_H - PAD * 2}
+            rx={4}
+            class="sg-kb-key sg-kb-name-bg"
+          />
+          <text
+            x={(14 + (TOTAL_W_U - 14) / 2) * KU}
+            y={ROW_H / 2}
+            class="sg-kb-name-label"
+            textLength={props.keyboardName!.length > 18 ? (TOTAL_W_U - 14) * KU - PAD * 2 - 16 : undefined}
+            lengthAdjust="spacingAndGlyphs"
+          >
+            {props.keyboardName}
+          </text>
+        </Show>
+        {LAYOUT.map(k => (
+          <g>
             <rect
-              x={14 * KU + PAD}
-              y={PAD}
-              width={(TOTAL_W_U - 14) * KU - PAD * 2}
+              x={k.x * KU + PAD}
+              y={rowY(k.row) + PAD}
+              width={k.w * KU - PAD * 2}
               height={ROW_H - PAD * 2}
               rx={4}
-              class="sg-kb-key sg-kb-name-bg"
+              class={keyClass(k.id)}
+              style={keyStyle(k.id)}
             />
             <text
-              x={(14 + (TOTAL_W_U - 14) / 2) * KU}
-              y={ROW_H / 2 + 3}
-              class="sg-kb-name-label"
+              x={k.x * KU + (k.w * KU) / 2}
+              y={rowY(k.row) + ROW_H / 2 + 4}
+              class={labelClass(k.id)}
+              style={labelStyle(k.id)}
+              font-size={props.keyLabels?.has(k.id) && (props.keyLabels.get(k.id)!.length > 3) ? "7" : undefined}
             >
-              {props.keyboardName}
+              {props.keyLabels?.get(k.id) ?? k.label}
             </text>
-          </Show>
-          {LAYOUT.map(k => (
-            <g>
-              <rect
-                x={k.x * KU + PAD}
-                y={rowY(k.row) + PAD}
-                width={k.w * KU - PAD * 2}
-                height={ROW_H - PAD * 2}
-                rx={4}
-                class={keyClass(k.id)}
-              />
-              <text
-                x={k.x * KU + (k.w * KU) / 2}
-                y={rowY(k.row) + ROW_H / 2 + 4}
-                class={`sg-kb-label${resolved().moveIds.has(k.id) ? " sg-kb-label-move" : k.id === resolved().jumpId ? " sg-kb-label-jump" : ""}`}
-              >
-                {k.label}
-              </text>
-            </g>
-          ))}
-        </svg>
-      </div>
-    </Show>
+          </g>
+        ))}
+      </svg>
+    </div>
   );
 }
