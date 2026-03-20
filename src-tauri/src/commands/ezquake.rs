@@ -933,9 +933,9 @@ fn classify_say_team(terminals: &[String]) -> Option<(&'static str, &'static str
     // Match by keywords in the message templates
     // Order matters — more specific patterns first
     if combined.contains("kill me") { return Some(("orders", "kill me", "Ask team to kill you for pack")); }
-    if combined.contains("dropped") || combined.contains("lost") { return Some(("death", "lost", "Report death / dropped weapon")); }
+    if combined.contains("dropped") || combined.contains("lost") || combined.contains("pack at") { return Some(("death", "lost", "Report death / dropped weapon")); }
     if combined.contains("safe") { return Some(("movement", "safe", "Report location is safe")); }
-    if combined.contains("help") { return Some(("orders", "help", "Request help at location")); }
+    if combined.contains("help") || combined.contains("ajudem") { return Some(("orders", "help", "Request help at location")); }
     if combined.contains("coming") { return Some(("movement", "coming", "Announce coming from location")); }
     if combined.contains("replace") { return Some(("orders", "replace", "Request replacement")); }
     if combined.contains("took") || combined.contains("team") && combined.contains("%p") {
@@ -998,12 +998,14 @@ fn classify_by_alias_name(name: &str) -> Option<(&'static str, &'static str, &'s
     if lower.contains("statuspent") { return Some(("orders", "pent status?", "Ask pent status")); }
 
     // Enemy weapon/kill reports (before generic "kill" / "enemy")
-    if lower.contains("rlkilled") || lower.contains("rl_killed") || lower.contains("rldied") || lower.contains("rl_died") { return Some(("enemy", "rl dead", "Enemy RL died")); }
+    if lower.contains("rlkilled") || lower.contains("rl_killed") || lower.contains("rldied") || lower.contains("rl_died")
+        || lower.contains("rldead") || lower.contains("rl_dead") { return Some(("enemy", "rl dead", "Enemy RL died")); }
+    if lower.contains("weak_rl") || lower.contains("weakrl") { return Some(("enemy", "weak rl", "Enemy RL low")); }
     if lower.contains("enemy_rl") || lower.contains("rl-nme") || lower.contains("rl_nme") { return Some(("enemy", "enemy rl", "Enemy has RL")); }
 
     // Pack reports (before generic "lost")
-    if lower.contains("mypack") || lower.contains("my_pack") { return Some(("death", "dropped", "Dropped pack at location")); }
-    if lower.contains("left_pack") || lower.contains("lostpack") { return Some(("death", "pack left", "Pack left at location")); }
+    if lower.contains("mypack") || lower.contains("my_pack") || lower.contains("borepack") { return Some(("death", "dropped", "Dropped pack at location")); }
+    if lower.contains("left_pack") || lower.contains("lostpack") || lower.contains("rlpack") { return Some(("death", "pack left", "Pack left at location")); }
 
     // Kill me (specific, before generic "kill")
     if lower.contains("kill_me") || lower.contains("killme") || lower.contains("kill_my") { return Some(("orders", "kill me", "Kill me for pack")); }
@@ -1046,7 +1048,10 @@ fn classify_by_alias_name(name: &str) -> Option<(&'static str, &'static str, &'s
     if lower.contains("sync") { return Some(("orders", "sync", "Sync attack")); }
     if lower.contains("get_my_stuff") || lower.contains("giveaway") { return Some(("orders", "give wpn", "Give away weapon/ammo")); }
     if lower.contains("itemsoon") || lower.contains("item_soon") || lower == "soon" { return Some(("items", "item soon", "Item respawning soon")); }
-    if lower.contains("youtake") || lower.contains("you_take") { return Some(("orders", "you take", "Tell teammate to take location")); }
+    if lower.contains("youtake") || lower.contains("you_take") || lower == "take" { return Some(("orders", "you take", "Tell teammate to take location")); }
+    if lower.contains("quad_tid") || lower.contains("quad_time") { return Some(("powerups", "quad time?", "Ask quad timing")); }
+    if lower.contains("quad_on") { return Some(("powerups", "quad on", "Quad on [time]")); }
+    if lower.contains("teamquad") || lower.contains("team_quad") { return Some(("powerups", "team quad", "Team has quad")); }
     // "_status" alone (no ra/ya/report suffix) = asking team to report
     if lower == "status" { return Some(("orders", "report!", "Ask team to report")); }
 
