@@ -106,6 +106,13 @@ export interface WeaponBind {
   fire_key: string | null;  // for manual: which key fires (usually "Mouse1")
 }
 
+export interface TeamsayBind {
+  key: string;           // display name of the key (e.g. "R", "Mouse4")
+  category: string;      // "status", "death", "movement", "items", "enemy", "orders", "powerups", "confirm", "custom"
+  label: string;         // short label (e.g. "report", "lost", "safe")
+  description: string;   // longer description
+}
+
 export interface EzQuakeConfig {
   player_name: string;
   player_name_qw: QwStyledChar[];
@@ -127,6 +134,7 @@ export interface EzQuakeConfig {
   cl_maxfps: number;
   movement: MovementKeys;
   weapon_binds: WeaponBind[];
+  teamsay_binds: TeamsayBind[];
   raw_cvars: Record<string, string>;
 }
 

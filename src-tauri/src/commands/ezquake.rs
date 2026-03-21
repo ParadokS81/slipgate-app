@@ -52,10 +52,14 @@ fn parse_config(content: &str) -> ParsedConfig {
 
     let skip_commands = [
         "unbind", "unbindall", "unaliasall",
-        "set", "tp_pickup", "tp_took", "tp_point",
+        "tp_pickup", "tp_took", "tp_point",
         "filter", "mapgroup", "skygroup", "floodprot",
         "hud_recalculate", "sb_sourceunmarkall", "sb_sourcemark",
     ];
+
+    // Parse "set NAME value" and "set_tp NAME value" as user variables → store as cvars.
+    // These create user-defined variables accessible as $NAME in commands.
+    let set_commands = ["set", "set_tp", "set_calc"];
 
     for line in content.lines() {
         let trimmed = line.trim();
@@ -92,8 +96,9 @@ fn parse_config(content: &str) -> ParsedConfig {
             continue;
         }
 
-        // Parse alias lines: alias NAME "command"
-        if key_lower == "alias" {
+        // Parse alias lines: alias/tempalias NAME "command"
+        // tempalias is ezQuake's teamplay-protected alias (same syntax, excluded from cfg_save)
+        if key_lower == "alias" || key_lower == "tempalias" {
             if let Some(rest) = parts.next() {
                 let rest = rest.trim();
                 let mut alias_parts = rest.splitn(2, char::is_whitespace);
@@ -116,6 +121,24 @@ fn parse_config(content: &str) -> ParsedConfig {
                 let path = rest.trim().trim_matches('"');
                 if !path.is_empty() {
                     exec_refs.push(path.to_string());
+                }
+            }
+            continue;
+        }
+
+        // Parse set/set_tp: "set varname value" → store as cvar
+        if set_commands.iter().any(|&cmd| key_lower == cmd) {
+            if let Some(rest) = parts.next() {
+                let rest = rest.trim();
+                let mut var_parts = rest.splitn(2, char::is_whitespace);
+                if let (Some(var_name), Some(var_val)) = (var_parts.next(), var_parts.next()) {
+                    let val = var_val.trim();
+                    let val = if val.starts_with('"') && val.ends_with('"') && val.len() >= 2 {
+                        &val[1..val.len() - 1]
+                    } else {
+                        val
+                    };
+                    cvars.insert(var_name.to_string(), val.to_string());
                 }
             }
             continue;
@@ -380,6 +403,7 @@ pub struct EzQuakeConfig {
     pub cl_maxfps: u32,
     pub movement: MovementKeys,
     pub weapon_binds: Vec<WeaponBind>,
+    pub teamsay_binds: Vec<TeamsayBind>,
     pub raw_cvars: HashMap<String, String>,
 }
 
@@ -551,13 +575,7 @@ fn extract_rebinds(cmd: &str) -> Vec<(String, String)> {
 /// Returns the fully resolved command string.
 fn resolve_command(cmd: &str, aliases: &HashMap<String, String>) -> String {
     let cmd_trimmed = cmd.trim();
-    // If the command starts with + or is a known alias, resolve it
-    let alias_name = if cmd_trimmed.starts_with('+') {
-        cmd_trimmed
-    } else {
-        cmd_trimmed
-    };
-    if let Some(resolved) = aliases.get(alias_name) {
+    if let Some(resolved) = aliases.get(cmd_trimmed) {
         return resolved.clone();
     }
     // Try without the + prefix too
@@ -567,6 +585,137 @@ fn resolve_command(cmd: &str, aliases: &HashMap<String, String>) -> String {
         }
     }
     cmd.to_string()
+}
+
+/// Resolve a command through alias chains recursively (depth-limited).
+/// Follows semicolon-separated commands and if/then/else branches.
+/// Returns all terminal commands found at the end of all branches.
+fn resolve_command_deep(
+    cmd: &str,
+    aliases: &HashMap<String, String>,
+    depth: u8,
+) -> Vec<String> {
+    if depth > 10 {
+        return vec![cmd.to_string()];
+    }
+
+    let mut terminals = Vec::new();
+    let cmd_trimmed = cmd.trim();
+
+    // Split on semicolons to handle compound commands
+    for part in cmd_trimmed.split(';') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+
+        // Handle "if ... then CMD else CMD" — extract both branches
+        let branches = extract_if_branches(part);
+        if !branches.is_empty() {
+            for branch in branches {
+                terminals.extend(resolve_command_deep(&branch, aliases, depth + 1));
+            }
+            continue;
+        }
+
+        // Extract the first word (command name)
+        let first_word = part.split_whitespace().next().unwrap_or(part);
+
+        // Try to resolve as an alias
+        if let Some(resolved) = aliases.get(first_word) {
+            terminals.extend(resolve_command_deep(resolved, aliases, depth + 1));
+        } else if first_word.starts_with('+') {
+            if let Some(resolved) = aliases.get(&first_word[1..]) {
+                terminals.extend(resolve_command_deep(resolved, aliases, depth + 1));
+            } else {
+                terminals.push(part.to_string());
+            }
+        } else if first_word.contains('$') {
+            // Variable in alias name (e.g. "__coming_say_$__theme").
+            // Try prefix matching: find any alias starting with the part before $.
+            if let Some(dollar_pos) = first_word.find('$') {
+                let prefix = &first_word[..dollar_pos];
+                if !prefix.is_empty() {
+                    // Find the first alias matching this prefix that we can resolve
+                    let match_found = aliases.keys()
+                        .find(|k| k.starts_with(prefix) && !k.contains('$'))
+                        .cloned();
+                    if let Some(matched_alias) = match_found {
+                        if let Some(resolved) = aliases.get(&matched_alias) {
+                            terminals.extend(resolve_command_deep(resolved, aliases, depth + 1));
+                        }
+                    } else {
+                        terminals.push(part.to_string());
+                    }
+                } else {
+                    terminals.push(part.to_string());
+                }
+            }
+        } else {
+            // Terminal command (not an alias) — keep it
+            terminals.push(part.to_string());
+        }
+    }
+
+    terminals
+}
+
+/// Extract command branches from an if/then/else statement.
+/// Returns the commands from both the "then" and "else" branches.
+fn extract_if_branches(cmd: &str) -> Vec<String> {
+    let lower = cmd.to_lowercase();
+    if !lower.starts_with("if ") && !lower.starts_with("if(") {
+        return Vec::new();
+    }
+
+    let mut branches = Vec::new();
+
+    // Find "then" keyword
+    if let Some(then_pos) = lower.find(" then ") {
+        let after_then = &cmd[then_pos + 6..];
+
+        // Find "else" keyword (not inside quotes)
+        if let Some(else_pos) = find_else(after_then) {
+            let then_branch = after_then[..else_pos].trim();
+            let else_branch = after_then[else_pos + 5..].trim();
+            if !then_branch.is_empty() {
+                branches.push(then_branch.to_string());
+            }
+            if !else_branch.is_empty() {
+                branches.push(else_branch.to_string());
+            }
+        } else {
+            // No else — just the then branch
+            let then_branch = after_then.trim();
+            if !then_branch.is_empty() {
+                branches.push(then_branch.to_string());
+            }
+        }
+    }
+
+    branches
+}
+
+/// Find the position of "else" keyword in a command string,
+/// skipping "else" that appears inside quoted strings.
+fn find_else(s: &str) -> Option<usize> {
+    let lower = s.to_lowercase();
+    let bytes = lower.as_bytes();
+    let mut in_quote = false;
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'\'' || bytes[i] == b'"' {
+            in_quote = !in_quote;
+        }
+        if !in_quote && i + 5 <= bytes.len() && &lower[i..i + 5] == " else" {
+            // Make sure "else" is followed by space or end of string
+            if i + 5 == bytes.len() || bytes[i + 5] == b' ' {
+                return Some(i);
+            }
+        }
+        i += 1;
+    }
+    None
 }
 
 /// Analyze all key bindings to extract weapon binds.
@@ -726,6 +875,279 @@ fn analyze_weapon_binds(
     result
 }
 
+// ============================================================
+// Teamsay bind analysis
+// ============================================================
+
+/// A detected teamsay bind.
+#[derive(Serialize, Clone, Debug)]
+pub struct TeamsayBind {
+    pub key: String,           // display name of the key (e.g. "R", "Mouse4")
+    pub category: String,      // "status", "death", "movement", "items", "enemy", "orders", "powerups", "confirm", "custom"
+    pub label: String,         // short human-readable label (e.g. "report", "lost", "safe")
+    pub description: String,   // longer description of what this bind does
+}
+
+/// Map a tp_msg* command to (category, label, description).
+fn classify_tp_msg(cmd: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    match cmd {
+        "tp_msgreport" => Some(("status", "report", "Report status: health, armor, weapon, location")),
+        "tp_msglost" => Some(("death", "lost", "Report death location and dropped weapon")),
+        "tp_msgcoming" => Some(("movement", "coming", "Announce coming from location")),
+        "tp_msgsafe" => Some(("movement", "safe", "Report location is safe")),
+        "tp_msgtook" => Some(("items", "took", "Report last item picked up")),
+        "tp_msgneed" => Some(("status", "need", "Report what items you need")),
+        "tp_msgpoint" => Some(("items", "point", "Report item/player you're looking at")),
+        "tp_msgenemypwr" => Some(("enemy", "enemy pwr", "Report enemy/team powerup")),
+        "tp_msghelp" => Some(("orders", "help", "Request help at location")),
+        "tp_msggetquad" => Some(("powerups", "get quad", "Tell team to get quad")),
+        "tp_msggetpent" => Some(("powerups", "get pent", "Tell team to get pent")),
+        "tp_msgquaddead" => Some(("powerups", "quad dead", "Report quad is dead/over")),
+        "tp_msgkillme" => Some(("orders", "kill me", "Ask team to kill you for pack")),
+        "tp_msgutake" => Some(("orders", "you take", "Tell teammate to take location")),
+        "tp_msgyesok" => Some(("confirm", "yes/ok", "Confirm")),
+        "tp_msgnocancel" => Some(("confirm", "no/cancel", "Deny or cancel")),
+        "tp_msgitemsoon" => Some(("items", "item soon", "Item respawning soon")),
+        "tp_msgwaiting" => Some(("movement", "waiting", "Waiting at location")),
+        "tp_msgtrick" => Some(("orders", "trick", "Request trick at location")),
+        "tp_msgreplace" => Some(("orders", "replace", "Request replacement at location")),
+        "tp_msgslipped" => Some(("enemy", "slipped", "Enemy slipped")),
+        "tp_msgtfconced" => Some(("enemy", "conced", "Enemy conced (TeamFortress)")),
+        _ => None,
+    }
+}
+
+/// Classify a say_team message by looking at keywords in the resolved terminal commands.
+fn classify_say_team(terminals: &[String]) -> Option<(&'static str, &'static str, &'static str)> {
+    // Collect all terminal text into one string for keyword matching
+    let combined: String = terminals.iter()
+        .filter(|t| t.to_lowercase().starts_with("say_team"))
+        .map(|t| t.to_lowercase())
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    if combined.is_empty() {
+        return None;
+    }
+
+    // Match by keywords in the message templates
+    // Order matters — more specific patterns first
+    if combined.contains("kill me") { return Some(("orders", "kill me", "Ask team to kill you for pack")); }
+    if combined.contains("dropped") || combined.contains("lost") || combined.contains("pack at") { return Some(("death", "lost", "Report death / dropped weapon")); }
+    if combined.contains("safe") { return Some(("movement", "safe", "Report location is safe")); }
+    if combined.contains("help") || combined.contains("ajudem") { return Some(("orders", "help", "Request help at location")); }
+    if combined.contains("coming") { return Some(("movement", "coming", "Announce coming from location")); }
+    if combined.contains("replace") { return Some(("orders", "replace", "Request replacement")); }
+    if combined.contains("took") || combined.contains("team") && combined.contains("%p") {
+        return Some(("items", "took", "Report item pickup / team powerup"));
+    }
+    if combined.contains("get") && combined.contains("quad") { return Some(("powerups", "get quad", "Tell team to get quad")); }
+    if combined.contains("get") && combined.contains("pent") { return Some(("powerups", "get pent", "Tell team to get pent")); }
+    if combined.contains("quad") && (combined.contains("over") || combined.contains("dead")) {
+        return Some(("powerups", "quad dead", "Quad is dead/over"));
+    }
+    if combined.contains("enemy") && (combined.contains("powerup") || combined.contains("%q")) {
+        return Some(("enemy", "enemy pwr", "Report enemy powerup"));
+    }
+    if combined.contains("slipped") || combined.contains("tunnel") || combined.contains("spikes") {
+        return Some(("enemy", "slipped", "Enemy movement / slipped"));
+    }
+    if combined.contains("enemy") || combined.contains("breached") {
+        return Some(("enemy", "enemy", "Enemy spotted"));
+    }
+    if combined.contains("need %u") || combined.contains("need") && combined.contains("%l") {
+        return Some(("status", "need", "Report what you need"));
+    }
+    if combined.contains("report") || (combined.contains("colored_armor") && combined.contains("%h")) || combined.contains("%a") && combined.contains("bestweapon") {
+        return Some(("status", "report", "Report status"));
+    }
+    if combined.contains("trick") { return Some(("orders", "trick", "Request trick at location")); }
+    if combined.contains("waiting") || combined.contains("awaiting") { return Some(("movement", "waiting", "Waiting at location")); }
+    if combined.contains("yes") || combined.contains("ok") && !combined.contains("kill") {
+        return Some(("confirm", "yes/ok", "Confirm"));
+    }
+    if combined.contains("no/") || combined.contains("cancel") { return Some(("confirm", "no/cancel", "Deny or cancel")); }
+    if combined.contains("point") || combined.contains("%x") && combined.contains("%y") {
+        return Some(("items", "point", "Report what you're pointing at"));
+    }
+    if combined.contains("attack") { return Some(("orders", "attack", "Attack order")); }
+    if combined.contains("soon") { return Some(("items", "item soon", "Item respawning soon")); }
+    if combined.contains("camping") { return Some(("movement", "camping", "Camping at location")); }
+
+    Some(("custom", "say_team", "Custom team message"))
+}
+
+/// Try to classify a bind based on its alias name (when terminal resolution is ambiguous).
+fn classify_by_alias_name(name: &str) -> Option<(&'static str, &'static str, &'static str)> {
+    let lower = name.to_lowercase();
+    let lower = lower.trim_start_matches('_').trim_start_matches('+').trim_start_matches('.');
+
+    // Most specific patterns first — order matters!
+    // Compound/ambiguous patterns must come before their individual parts.
+
+    // Compound patterns
+    if lower.contains("need") && lower.contains("powerup") { return Some(("status", "need/pwr", "Report needs or team powerup")); }
+    if lower.contains("enemy") && lower.contains("powerup") { return Some(("enemy", "enemy pwr", "Enemy powerup")); }
+    if lower.contains("attack") && lower.contains("lost") { return Some(("orders", "attack", "Attack lost position")); }
+    if lower.contains("ask") && lower.contains("status") { return Some(("orders", "status?", "Ask team for status")); }
+
+    // Area status queries (statusra, statusya — NOT self-report)
+    if lower.contains("statusra") { return Some(("orders", "ra status?", "Ask RA area status")); }
+    if lower.contains("statusya") { return Some(("orders", "ya status?", "Ask YA area status")); }
+    if lower.contains("statusquad") { return Some(("orders", "quad status?", "Ask quad status")); }
+    if lower.contains("statuspent") { return Some(("orders", "pent status?", "Ask pent status")); }
+
+    // Enemy weapon/kill reports (before generic "kill" / "enemy")
+    if lower.contains("rlkilled") || lower.contains("rl_killed") || lower.contains("rldied") || lower.contains("rl_died")
+        || lower.contains("rldead") || lower.contains("rl_dead") { return Some(("enemy", "rl dead", "Enemy RL died")); }
+    if lower.contains("weak_rl") || lower.contains("weakrl") { return Some(("enemy", "weak rl", "Enemy RL low")); }
+    if lower.contains("enemy_rl") || lower.contains("rl-nme") || lower.contains("rl_nme") { return Some(("enemy", "enemy rl", "Enemy has RL")); }
+
+    // Pack reports (before generic "lost")
+    if lower.contains("mypack") || lower.contains("my_pack") || lower.contains("borepack") { return Some(("death", "dropped", "Dropped pack at location")); }
+    if lower.contains("left_pack") || lower.contains("lostpack") || lower.contains("rlpack") { return Some(("death", "pack left", "Pack left at location")); }
+
+    // Kill me (specific, before generic "kill")
+    if lower.contains("kill_me") || lower.contains("killme") || lower.contains("kill_my") { return Some(("orders", "kill me", "Kill me for pack")); }
+
+    // Status / report
+    if lower.contains("status_report") || lower.contains("report") { return Some(("status", "report", "Report status")); }
+
+    // Get item orders (before generic patterns)
+    if lower.contains("get_mega") || lower.contains("getmega") { return Some(("items", "get mega", "Get mega health")); }
+    if lower.contains("getquad") || lower.contains("get_quad") { return Some(("powerups", "get quad", "Get quad")); }
+    if lower.contains("getpent") || lower.contains("get_pent") { return Some(("powerups", "get pent", "Get pent")); }
+    if lower.starts_with("getrl") || lower.starts_with("get_rl") { return Some(("orders", "get rl", "Get RL")); }
+    if lower.starts_with("getlg") || lower.starts_with("get_lg") { return Some(("orders", "get lg", "Get LG")); }
+    if lower.starts_with("getra") || lower.starts_with("get_ra") { return Some(("orders", "get ra", "Get RA")); }
+    if lower.starts_with("getya") || lower.starts_with("get_ya") { return Some(("orders", "get ya", "Get YA")); }
+    if lower.starts_with("getga") || lower.starts_with("get_ga") { return Some(("orders", "get ga", "Get GA")); }
+    if lower.starts_with("geth") && lower.contains("rl") { return Some(("orders", "get rl", "Get RL (high/low)")); }
+
+    // Standard patterns
+    if lower.contains("lost") { return Some(("death", "lost", "Report death")); }
+    if lower.contains("safe") { return Some(("movement", "safe", "Location safe")); }
+    if lower.contains("coming") { return Some(("movement", "coming", "Coming from location")); }
+    if lower.contains("help") { return Some(("orders", "help", "Request help")); }
+    if lower.contains("replace") { return Some(("orders", "replace", "Request replacement")); }
+    if lower.contains("took") { return Some(("items", "took", "Item pickup")); }
+    if lower.contains("need") { return Some(("status", "need", "Report needs")); }
+    if lower.contains("point") { return Some(("items", "point", "Point at item")); }
+    if lower.contains("quadover") || lower.contains("quad_over") { return Some(("powerups", "quad dead", "Quad over")); }
+    if lower.contains("slipped") { return Some(("enemy", "slipped", "Enemy slipped")); }
+    if lower.contains("enemy") { return Some(("enemy", "enemy", "Enemy report")); }
+    if lower.contains("yesok") || lower == "ok" { return Some(("confirm", "yes/ok", "Confirm")); }
+    if lower.contains("nocancel") || lower.contains("cancel") { return Some(("confirm", "no/cancel", "Cancel")); }
+    if lower.contains("trick") { return Some(("orders", "trick", "Trick")); }
+    if lower.contains("waiting") || lower.contains("wait") { return Some(("movement", "waiting", "Waiting")); }
+    if lower.contains("attack") { return Some(("orders", "attack", "Attack")); }
+    if lower.contains("camping") || lower.contains("camp") { return Some(("movement", "camping", "Camping")); }
+    if lower == "dont" || lower == "don't" { return Some(("orders", "don't", "Don't come / stay away")); }
+    if lower.contains("focus") { return Some(("orders", "focus", "Focus / shut up")); }
+    if lower.contains("timer") && lower.contains("say") { return Some(("items", "timer", "Item timer callout")); }
+    if lower.contains("sync") { return Some(("orders", "sync", "Sync attack")); }
+    if lower.contains("get_my_stuff") || lower.contains("giveaway") { return Some(("orders", "give wpn", "Give away weapon/ammo")); }
+    if lower.contains("itemsoon") || lower.contains("item_soon") || lower == "soon" { return Some(("items", "item soon", "Item respawning soon")); }
+    if lower.contains("youtake") || lower.contains("you_take") || lower == "take" { return Some(("orders", "you take", "Tell teammate to take location")); }
+    if lower.contains("quad_tid") || lower.contains("quad_time") { return Some(("powerups", "quad time?", "Ask quad timing")); }
+    if lower.contains("quad_on") { return Some(("powerups", "quad on", "Quad on [time]")); }
+    if lower.contains("teamquad") || lower.contains("team_quad") { return Some(("powerups", "team quad", "Team has quad")); }
+    // "_status" alone (no ra/ya/report suffix) = asking team to report
+    if lower == "status" { return Some(("orders", "report!", "Ask team to report")); }
+
+    None
+}
+
+/// Analyze all key bindings to extract teamsay binds.
+fn analyze_teamsay_binds(
+    bindings: &[(String, String)],
+    aliases: &HashMap<String, String>,
+) -> Vec<TeamsayBind> {
+    let mut teamsay_binds = Vec::new();
+    // Track last-seen bind per key (ezQuake: last bind wins)
+    let mut seen_keys = std::collections::HashMap::<String, usize>::new();
+
+    for (key, cmd) in bindings {
+        let key_upper = key.to_uppercase();
+        if cmd.is_empty() || cmd == "\"\"" {
+            continue;
+        }
+
+        // Split compound bind commands and check each part
+        let parts: Vec<&str> = cmd.split(';').map(|s| s.trim()).collect();
+
+        for part in &parts {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+
+            let first_word = part.split_whitespace().next().unwrap_or(part);
+
+            // Classify this bind part
+            let classification: Option<(&str, &str, &str)>;
+
+            // Check 1: direct tp_msg* command
+            if let Some(c) = classify_tp_msg(first_word) {
+                classification = Some(c);
+            }
+            // Check 2: direct say_team command
+            else if part.to_lowercase().starts_with("say_team ") {
+                classification = classify_say_team(&[part.to_string()])
+                    .or(Some(("custom", "say_team", "Custom team message")));
+            }
+            // Check 3: resolve through alias chains
+            else {
+                let terminals = resolve_command_deep(part, aliases, 0);
+                let has_say_team = terminals.iter().any(|t| t.to_lowercase().starts_with("say_team"));
+                let has_tp_msg = terminals.iter().any(|t| t.to_lowercase().starts_with("tp_msg"));
+
+                if has_say_team || has_tp_msg {
+                    let by_name = classify_by_alias_name(first_word);
+                    let by_tp_msg = terminals.iter()
+                        .filter_map(|t| classify_tp_msg(t.split_whitespace().next().unwrap_or(t)))
+                        .next();
+                    let by_content = if has_say_team { classify_say_team(&terminals) } else { None };
+
+                    classification = Some(by_name
+                        .or(by_tp_msg)
+                        .or(by_content)
+                        .unwrap_or(("custom", "say_team", "Team communication")));
+                } else {
+                    classification = None;
+                }
+            }
+
+            if let Some((cat, label, desc)) = classification {
+                let key_display = format_key_name(&key_upper);
+                let bind = TeamsayBind {
+                    key: key_display.clone(),
+                    category: cat.to_string(),
+                    label: label.to_string(),
+                    description: desc.to_string(),
+                };
+                // Last bind wins (ezQuake processes top-to-bottom)
+                if let Some(&idx) = seen_keys.get(&key_display) {
+                    teamsay_binds[idx] = bind;
+                } else {
+                    seen_keys.insert(key_display, teamsay_binds.len());
+                    teamsay_binds.push(bind);
+                }
+            }
+        }
+    }
+
+    // Sort by category, then by label
+    let cat_order = ["status", "death", "movement", "items", "enemy", "orders", "powerups", "confirm", "custom"];
+    teamsay_binds.sort_by(|a, b| {
+        let a_pos = cat_order.iter().position(|&c| c == a.category).unwrap_or(99);
+        let b_pos = cat_order.iter().position(|&c| c == b.category).unwrap_or(99);
+        a_pos.cmp(&b_pos).then(a.label.cmp(&b.label))
+    });
+
+    teamsay_binds
+}
+
 fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
     let bindings = parsed.bindings;
     let aliases = parsed.aliases;
@@ -829,6 +1251,7 @@ fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
     };
 
     let weapon_binds = analyze_weapon_binds(&bindings, &aliases);
+    let teamsay_binds = analyze_teamsay_binds(&bindings, &aliases);
 
     EzQuakeConfig {
         player_name,
@@ -851,6 +1274,7 @@ fn build_config(parsed: ParsedConfig) -> EzQuakeConfig {
         cl_maxfps,
         movement,
         weapon_binds,
+        teamsay_binds,
         raw_cvars: parsed,
     }
 }
@@ -1090,4 +1514,129 @@ pub fn launch_ezquake(options: LaunchOptions) -> Result<(), String> {
 
     cmd.spawn().map_err(|e| format!("Failed to launch ezQuake: {}", e))?;
     Ok(())
+}
+
+// ============================================================
+// Test harness — run with:
+//   CONFIG_PATH="C:\path\to\config.cfg" cargo test -p slipgate-app test_parse_config -- --nocapture
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_config() {
+        let config_path = match std::env::var("CONFIG_PATH") {
+            Ok(p) => p,
+            Err(_) => {
+                println!("Set CONFIG_PATH env var to test a config file.");
+                println!("Example: CONFIG_PATH=\"C:\\Games\\QuakeWorld\\QuakeWorld\\ezquake\\configs\\config.cfg\" cargo test -p slipgate-app test_parse_config -- --nocapture");
+                return;
+            }
+        };
+
+        let path = PathBuf::from(&config_path);
+        if !path.exists() {
+            println!("File not found: {}", config_path);
+            return;
+        }
+
+        // Read main config
+        let bytes = std::fs::read(&path).expect("Failed to read config file");
+        let content = String::from_utf8_lossy(&bytes).to_string();
+        let mut parsed = parse_config(&content);
+
+        println!("\n{}", "=".repeat(70));
+        println!("CONFIG: {}", config_path);
+        println!("{}", "=".repeat(70));
+
+        // Follow exec references
+        let cfg_dir = path.parent().unwrap_or(Path::new("."));
+        let game_dir = cfg_dir.parent().unwrap_or(cfg_dir);
+        let exec_refs = parsed.exec_refs.clone();
+        println!("\n--- EXEC REFS ({}) ---", exec_refs.len());
+        for exec_path in &exec_refs {
+            let candidates = [
+                game_dir.join(exec_path),
+                cfg_dir.join(exec_path),
+                game_dir.join(exec_path.trim_start_matches("configs/")),
+            ];
+            let mut found = false;
+            for candidate in &candidates {
+                if candidate.exists() {
+                    if let Ok(bytes) = std::fs::read(candidate) {
+                        let sub_content = String::from_utf8_lossy(&bytes).to_string();
+                        let sub_parsed = parse_config(&sub_content);
+                        let alias_count = sub_parsed.aliases.len();
+                        let bind_count = sub_parsed.bindings.len();
+                        for (k, v) in sub_parsed.aliases {
+                            parsed.aliases.entry(k).or_insert(v);
+                        }
+                        for binding in sub_parsed.bindings {
+                            parsed.bindings.push(binding);
+                        }
+                        println!("  [OK] {} → {} aliases, {} binds", exec_path, alias_count, bind_count);
+                    }
+                    found = true;
+                    break;
+                }
+            }
+            if !found {
+                println!("  [--] {} (not found)", exec_path);
+            }
+        }
+
+        let config = build_config(parsed);
+
+        // Player info
+        println!("\n--- PLAYER ---");
+        println!("  Name: {}", config.player_name);
+        println!("  Team: {}", if config.team.is_empty() { "(none)" } else { &config.team });
+
+        // Movement
+        println!("\n--- MOVEMENT ---");
+        println!("  Forward:   {}", config.movement.forward);
+        println!("  Back:      {}", config.movement.back);
+        println!("  Left:      {}", config.movement.moveleft);
+        println!("  Right:     {}", config.movement.moveright);
+        println!("  Jump:      {}", config.movement.jump);
+
+        // Sensitivity
+        println!("\n--- SENSITIVITY ---");
+        println!("  sensitivity: {}", config.sensitivity);
+        println!("  m_yaw:       {}", config.m_yaw);
+        if let Some(lg) = config.lg_sensitivity {
+            println!("  LG sens:     {}", lg);
+        }
+
+        // Display
+        println!("\n--- DISPLAY ---");
+        println!("  Resolution:  {}x{}", config.vid_width, config.vid_height);
+        println!("  Refresh:     {} Hz", config.vid_displayfrequency);
+        println!("  FOV:         {}", config.fov);
+
+        // Weapon binds
+        println!("\n--- WEAPON BINDS ({}) ---", config.weapon_binds.len());
+        println!("  {:<8} {:<12} {:<10} {}", "WEAPON", "KEY", "METHOD", "FIRE KEY");
+        println!("  {}", "-".repeat(45));
+        for wb in &config.weapon_binds {
+            println!("  {:<8} {:<12} {:<10} {}",
+                wb.weapon, wb.key, wb.method,
+                wb.fire_key.as_deref().unwrap_or(""));
+        }
+
+        // Teamsay binds
+        println!("\n--- TEAMSAY BINDS ({}) ---", config.teamsay_binds.len());
+        println!("  {:<10} {:<12} {:<12} {}", "CATEGORY", "KEY", "LABEL", "DESCRIPTION");
+        println!("  {}", "-".repeat(60));
+        for tb in &config.teamsay_binds {
+            println!("  {:<10} {:<12} {:<12} {}",
+                tb.category, tb.key, tb.label, tb.description);
+        }
+
+        println!("\n{}", "=".repeat(70));
+        println!("Aliases loaded: {}", config.raw_cvars.len());
+        println!("{}\n", "=".repeat(70));
+    }
 }

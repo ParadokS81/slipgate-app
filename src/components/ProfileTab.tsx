@@ -9,6 +9,7 @@ import KeyboardLayout, { toLayoutId } from "./KeyboardLayout";
 import type { KeyHighlight } from "./KeyboardLayout";
 import MouseLayout from "./MouseLayout";
 import WeaponBindViz, { WEAPON_COLORS } from "./WeaponBindViz";
+import type { MouseHighlights } from "./MouseSvg";
 import miceData from "../data/mice.json";
 import mousepadsData from "../data/mousepads.json";
 import miceSupplement from "../data/mice-supplement.json";
@@ -79,26 +80,70 @@ export default function ProfileTab(props: ProfileTabProps) {
   // Input visualization toggles
   const [showMovement, setShowMovement] = createSignal(true);
   const [showWeapons, setShowWeapons] = createSignal(false);
+  const [showTeamplay, setShowTeamplay] = createSignal(false);
   const [showBindLabels, setShowBindLabels] = createSignal(false);
   const [showWeaponIcons, setShowWeaponIcons] = createSignal(true);
-  // Future: showTeambinds, showOthers
+  // Future: showOthers
 
   // Bind visualization mode = any non-movement toggle is active
-  const bindVizMode = () => showWeapons();
+  const bindVizMode = () => showWeapons() || showTeamplay();
 
-  // Build keyboard highlights from weapon binds
+  // Teamsay category colors
+  const TEAMSAY_COLORS: Record<string, string> = {
+    status:   "oklch(0.7 0.15 210)",  // cyan
+    death:    "oklch(0.65 0.2 25)",   // red
+    movement: "oklch(0.7 0.15 145)",  // green
+    items:    "oklch(0.75 0.15 85)",  // yellow
+    enemy:    "oklch(0.65 0.2 30)",   // red-orange
+    orders:   "oklch(0.7 0.15 55)",   // orange
+    powerups: "oklch(0.7 0.18 300)",  // purple
+    confirm:  "oklch(0.65 0.1 250)",  // blue-gray
+    custom:   "oklch(0.6 0.08 0)",    // neutral gray
+  };
+
+  // Build keyboard highlights from weapon binds + teamsay binds
   const weaponKeyHighlights = createMemo(() => {
-    if (!showWeapons()) return new Map<string, KeyHighlight>();
-    const binds = props.ezConfig?.weapon_binds ?? [];
     const highlights = new Map<string, KeyHighlight>();
-    for (const wb of binds) {
-      const layoutId = toLayoutId(wb.key);
-      if (layoutId) {
-        const color = WEAPON_COLORS[wb.weapon] ?? "oklch(0.5 0.05 0)";
-        highlights.set(layoutId, { color });
+    if (showWeapons()) {
+      const binds = props.ezConfig?.weapon_binds ?? [];
+      for (const wb of binds) {
+        const layoutId = toLayoutId(wb.key);
+        if (layoutId) {
+          const color = WEAPON_COLORS[wb.weapon] ?? "oklch(0.5 0.05 0)";
+          highlights.set(layoutId, { color });
+        }
+      }
+    }
+    if (showTeamplay()) {
+      const binds = props.ezConfig?.teamsay_binds ?? [];
+      for (const tb of binds) {
+        const layoutId = toLayoutId(tb.key);
+        if (layoutId && !highlights.has(layoutId)) {
+          const color = TEAMSAY_COLORS[tb.category] ?? "oklch(0.6 0.08 0)";
+          highlights.set(layoutId, { color });
+        }
       }
     }
     return highlights;
+  });
+
+  // Build mouse highlights for teamsay binds (MWheelUp, MWheelDown, Mouse4, etc.)
+  const teamsayMouseHighlights = createMemo((): MouseHighlights => {
+    if (!showTeamplay()) return {};
+    const binds = props.ezConfig?.teamsay_binds ?? [];
+    const hl: MouseHighlights = {};
+    const keyToBtn: Record<string, keyof MouseHighlights> = {
+      Mouse1: "mouse1", Mouse2: "mouse2", Mouse3: "mwheel",
+      Mouse4: "mouse4", Mouse5: "mouse5",
+      MWheelUp: "mwheel", MWheelDown: "mwheel",
+    };
+    for (const tb of binds) {
+      const btn = keyToBtn[tb.key];
+      if (btn && !hl[btn]) {
+        hl[btn] = TEAMSAY_COLORS[tb.category] ?? "oklch(0.6 0.08 0)";
+      }
+    }
+    return hl;
   });
 
   // Build key label overrides (physical key → bound function)
@@ -132,8 +177,16 @@ export default function ProfileTab(props: ProfileTabProps) {
         if (id) {
           const existing = labels.get(id);
           const wLabel = WEAPON_LABELS[wb.weapon] ?? wb.weapon.toUpperCase();
-          // If key already has a label (e.g. movement), combine them
           labels.set(id, existing ? `${existing}/${wLabel}` : wLabel);
+        }
+      }
+    }
+    // Teamsay labels
+    if (showTeamplay()) {
+      for (const tb of cfg.teamsay_binds) {
+        const id = toLayoutId(tb.key);
+        if (id && !labels.has(id)) {
+          labels.set(id, tb.label);
         }
       }
     }
@@ -353,8 +406,9 @@ export default function ProfileTab(props: ProfileTabProps) {
                 onClick={() => setShowWeapons(v => !v)}
               >Weapons</button>
               <button
-                class="sg-input-toggle sg-input-toggle-disabled"
-                disabled
+                class="sg-input-toggle"
+                classList={{ "sg-input-toggle-active": showTeamplay() }}
+                onClick={() => setShowTeamplay(v => !v)}
               >Teamplay</button>
               <button
                 class="sg-input-toggle sg-input-toggle-disabled"
@@ -540,7 +594,68 @@ export default function ProfileTab(props: ProfileTabProps) {
                       movement={props.ezConfig!.movement}
                       showMovement={showMovement()}
                       showIcons={showWeaponIcons()}
+                      extraMouseHighlights={teamsayMouseHighlights()}
                     />
+                  </Show>
+                  <Show when={showTeamplay() && (props.ezConfig?.teamsay_binds?.length ?? 0) > 0}>
+                    <div class="sg-weapon-grid-wrap">
+                      {/* Left column — matches mouse SVG width */}
+                      <div class="sg-teamsay-icon">
+                        <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                          {/* Speech bubble — team communication */}
+                          <rect x="6" y="8" width="52" height="34" rx="6" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.5" />
+                          <path d="M18 42 L24 52 L30 42" fill="none" stroke="currentColor" stroke-width="2.5" opacity="0.5" />
+                          {/* Signal waves */}
+                          <path d="M20 20 Q22 18 24 20 Q26 22 28 20" fill="none" stroke="currentColor" stroke-width="2" opacity="0.35" />
+                          <path d="M20 26 Q24 22 28 26 Q32 30 36 26 Q40 22 44 26" fill="none" stroke="currentColor" stroke-width="2" opacity="0.35" />
+                          <path d="M20 32 Q22 30 24 32 Q26 34 28 32" fill="none" stroke="currentColor" stroke-width="2" opacity="0.35" />
+                        </svg>
+                      </div>
+                      {/* 4-column category grid — aligned with weapon grid */}
+                      <div class="sg-teamsay-grid">
+                        {(() => {
+                          const binds = props.ezConfig!.teamsay_binds;
+                          const groups = new Map<string, typeof binds>();
+                          for (const b of binds) {
+                            const existing = groups.get(b.category) ?? [];
+                            existing.push(b);
+                            groups.set(b.category, existing);
+                          }
+                          // Merge small related categories into combined columns
+                          const mergeRules: [string, string][] = [["death", "enemy"]];
+                          for (const [a, b] of mergeRules) {
+                            if (groups.has(a) && groups.has(b)) {
+                              const merged = [...groups.get(a)!, ...groups.get(b)!];
+                              groups.set(`${a}/${b}`, merged);
+                              groups.delete(a);
+                              groups.delete(b);
+                            }
+                          }
+                          const catOrder = ["status", "death/enemy", "death", "movement", "items", "enemy", "orders", "powerups", "confirm", "custom"];
+                          return catOrder
+                            .filter(cat => groups.has(cat))
+                            .map(cat => {
+                              const colorKey = cat.split("/")[0];
+                              return (
+                                <div class="sg-teamsay-col">
+                                  <div
+                                    class="sg-teamsay-cat"
+                                    style={`color: ${TEAMSAY_COLORS[colorKey] ?? "oklch(0.6 0.08 0)"}`}
+                                  >{cat.replace("/", " / ")}</div>
+                                  <div class="sg-teamsay-rows">
+                                    {groups.get(cat)!.map(b => (
+                                      <div class="sg-teamsay-row" title={b.description}>
+                                        <span class="sg-keycap">{b.key}</span>
+                                        <span class="sg-teamsay-label">{b.label}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            });
+                        })()}
+                      </div>
+                    </div>
                   </Show>
                 </Show>
               </div>

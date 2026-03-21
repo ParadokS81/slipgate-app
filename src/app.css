@@ -1363,12 +1363,15 @@ input[type="number"] {
   display: flex;
   gap: 16px;
   align-items: center;
+  margin-top: 20px;
+  margin-bottom: 20px;
 }
 
 /* Mouse on the left — sized to match both weapon rows */
 .sg-weapon-grid-mouse {
   flex-shrink: 0;
-  width: 110px;
+  width: 150px;
+  padding: 0 20px;
 }
 
 /* Mouse SVG — themed from user's reference design */
@@ -1499,4 +1502,64 @@ input[type="number"] {
 .sg-weapon-cell-fire {
   font-weight: 500;
   color: var(--sg-text-dim);
+}
+
+/* ─── Teamsay bind grid ──────────────────────────────────────────────── */
+
+/* Icon area — same width as mouse SVG to align columns */
+.sg-teamsay-icon {
+  flex-shrink: 0;
+  width: 150px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: oklch(0.45 0.04 250);
+}
+
+.sg-teamsay-icon svg {
+  width: 64px;
+  height: 64px;
+}
+
+.sg-teamsay-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px 4px;
+}
+
+.sg-teamsay-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 8px;
+}
+
+.sg-teamsay-cat {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid color-mix(in oklch, currentColor 20%, transparent);
+}
+
+.sg-teamsay-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sg-teamsay-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sg-teamsay-label {
+  font-size: 11px;
+  color: var(--sg-text-dim);
+  white-space: nowrap;
 }
