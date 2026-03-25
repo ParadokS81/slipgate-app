@@ -42,10 +42,11 @@ export default function ClientsTab(props: ClientsTabProps) {
   const [isChecking, setIsChecking] = createSignal(false);
   const [isUpdating, setIsUpdating] = createSignal(false);
 
-  // Ecosystem tabs — read-only changelogs for KTX / MVDSV
-  const [updatesTab, setUpdatesTab] = createSignal<"ezQuake" | "KTX" | "MVDSV">("ezQuake");
+  // Ecosystem tabs — read-only changelogs for KTX / MVDSV / QWFWD
+  const [updatesTab, setUpdatesTab] = createSignal<"ezQuake" | "KTX" | "MVDSV" | "QWFWD">("ezQuake");
   const [ktxNotes, setKtxNotes] = createSignal<ReleaseNote[]>([]);
   const [mvdsvNotes, setMvdsvNotes] = createSignal<ReleaseNote[]>([]);
+  const [qwfwdNotes, setQwfwdNotes] = createSignal<ReleaseNote[]>([]);
   const [isLoadingEcosystem, setIsLoadingEcosystem] = createSignal(false);
 
   // Listen for progress events from Rust backend
@@ -206,8 +207,8 @@ export default function ClientsTab(props: ClientsTabProps) {
     setUpdateResult(null);
     setError("");
     try {
-      // Fetch all three in parallel
-      const [ezResult, ktxResult, mvdsvResult] = await Promise.all([
+      // Fetch all in parallel
+      const [ezResult, ktxResult, mvdsvResult, qwfwdResult] = await Promise.all([
         invoke<UpdateCheckResult>("check_for_update", {
           exePath: path,
           clientName: "ezQuake",
@@ -221,10 +222,15 @@ export default function ClientsTab(props: ClientsTabProps) {
           clientName: "MVDSV",
           fromVersion: null,
         }).catch((e) => { console.error("MVDSV fetch error:", e); return [] as ReleaseNote[]; }),
+        invoke<ReleaseNote[]>("get_release_changelog", {
+          clientName: "QWFWD",
+          fromVersion: null,
+        }).catch((e) => { console.error("QWFWD fetch error:", e); return [] as ReleaseNote[]; }),
       ]);
       setUpdateCheck(ezResult);
       setKtxNotes(ktxResult);
       setMvdsvNotes(mvdsvResult);
+      setQwfwdNotes(qwfwdResult);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -426,7 +432,7 @@ export default function ClientsTab(props: ClientsTabProps) {
 
             {/* Ecosystem tabs */}
             <div class="sg-updates-tabs">
-              <For each={["ezQuake", "KTX", "MVDSV"] as const}>
+              <For each={["ezQuake", "KTX", "MVDSV", "QWFWD"] as const}>
                 {(tab) => (
                   <button
                     class="sg-updates-tab"
@@ -552,6 +558,17 @@ export default function ClientsTab(props: ClientsTabProps) {
                 </div>
               }>
                 <Changelog notes={mvdsvNotes()} />
+              </Show>
+            </Show>
+
+            {/* ─── QWFWD tab ─── */}
+            <Show when={updatesTab() === "QWFWD"}>
+              <Show when={qwfwdNotes().length > 0} fallback={
+                <div style={{ padding: "12px 0", "font-size": "12px", color: "var(--sg-section-label)", "text-align": "center" }}>
+                  Click "Check Now" to load QWFWD changelogs
+                </div>
+              }>
+                <Changelog notes={qwfwdNotes()} />
               </Show>
             </Show>
           </div>

@@ -58,12 +58,22 @@ pub const MVDSV: ClientDef = ClientDef {
     snapshot_url: None,
 };
 
+pub const QWFWD: ClientDef = ClientDef {
+    name: "QWFWD",
+    github_owner: "QW-Group",
+    github_repo: "qwfwd",
+    windows_asset: "",
+    exe_name: "",
+    snapshot_url: None,
+};
+
 fn get_client_def(name: &str) -> Result<&'static ClientDef, String> {
     match name.to_lowercase().as_str() {
         "ezquake" => Ok(&EZQUAKE),
         "unezquake" => Ok(&UNEZQUAKE),
         "ktx" => Ok(&KTX),
         "mvdsv" => Ok(&MVDSV),
+        "qwfwd" => Ok(&QWFWD),
         _ => Err(format!("Unknown client: {}", name)),
     }
 }
